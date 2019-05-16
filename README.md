@@ -1,2 +1,4 @@
 # Adaptive-Sequential-Sampling
-Requires installation of commercial optimization software CPLEX and open-source numerical computing package Eigen
+Requirements: 
+1. Commercial optimization software CPLEX  
+2. Open-source numerical computing package Eigen
