@@ -1,38 +1,11 @@
 /*
    Functions used to execute option 0 in the main function.
    *****Insert description of option 0.*****
-
-
 */
 
 /*
-   All option 0 code.
-   // FIXME*** delete once all necessary functions have been copied.
-   SHARED:
-   vector header file
-   *push_back
-   VectorXf
-   stdio header file
-   STAT struct
-   *stat instance of STAT
-   cmath header file
-   UNIQUE:
-   solve_singlecut
+  insert function header
 */
-if (option == 0)
-{
-  // Benders single cut
-  vector<int> samples;
-  for (int k = 0; k < prob.nbScens; ++k)
-    samples.push_back(k);
-  VectorXf xiterateXf(prob.nbFirstVars);
-  solve_singlecut(env, prob, stat, clock, samples, xiterateXf);
-  cout << "relaxobjval = " << stat.relaxobjval << endl;
-  cout << "feasobjval = " << stat.feasobjval << endl;
-  cout << "optimality gap = " << (stat.feasobjval-stat.relaxobjval)*1.0/(fabs(stat.feasobjval)+1e-10) << endl;
-}
-
-
 void solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf)
 {
 	// Benders: single cut

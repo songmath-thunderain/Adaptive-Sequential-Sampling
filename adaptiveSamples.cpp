@@ -6,7 +6,7 @@
 #include <iostream>
 #include <ilcplex/ilocplex.h>
 #include "adaptiveSamples.h"
-//#include <Eigen>
+#include <Eigen>
 #include <vector>
 #include <algorithm>
 #include <cmath>
@@ -27,12 +27,12 @@ double TIMELIMIT = 7200;
 int main(int argc, char **argv)
 {
 	// Run program like this:
-	// ./adaptiveSamples new_sample_instances/***.dat results/temp 1 0 0.5 1e-3 
+	// ./adaptiveSamples new_sample_instances/***.dat results/temp 1 0 0.5 1e-3
 	// option: -1 - extensive, 0 - Benders single, 1 - level, 2 - partly inexact bundle defined by partitions, 3 - sequential, 4 - adaptive, 5 - adaptive + partition, 6 - solve instances with a given # of samples in a retrospective way
 	// suboption: only apply for option = 3, 4, 5
 		// Option = 3: sequential - 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP
 		// Option = 4: adaptive (solve SAA up to sample errors) - 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP; 3: fixed rate after B&M fails
-   		// Option = 5: adaptive + warmup by partition - 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP; 3: fixed rate after B&M fails; 4: fixed rate all over;  5: a heuristic rule to adjust sample size increase rate by some "trust region" rule	
+   		// Option = 5: adaptive + warmup by partition - 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP; 3: fixed rate after B&M fails; 4: fixed rate all over;  5: a heuristic rule to adjust sample size increase rate by some "trust region" rule
 	// Alternative use of suboption for option = 6: # of samples used
     cout << "Importing data..." << endl;
     IloEnv env;
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
 	prob.nbSecRows = profile[4];
 
 	cout << "Number of first-stage vars:" << prob.nbFirstVars << endl;
-    cout << "Number of second-stage vars:" << prob.nbSecVars << endl;	
+    cout << "Number of second-stage vars:" << prob.nbSecVars << endl;
 	cout << "Number of scenarios:" << prob.nbScens << endl;
 	cout << "Number of first rows:" << prob.nbFirstRows << endl;
 	cout << "Number of second rows:" << prob.nbSecRows << endl;
@@ -139,7 +139,7 @@ int main(int argc, char **argv)
 	stat.num_opt_cuts = 0;
 	stat.iter = 0;
 	stat.partitionsize = 0;
-	stat.finalpartitionsize = 0; 
+	stat.finalpartitionsize = 0;
 	if (option == -1)
 	{
 		// extended formulation
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
 		solve_adaptive_partition(env, prob, stat, clock, suboption);
 	}
 	cout << "solvetime = " << stat.solvetime << endl;
-	
+
 	ofstream out(argv[2], ios::app);
 	if (out)  {
 			out << setw(16) << argv[1];
@@ -264,10 +264,10 @@ int main(int argc, char **argv)
 			}
 			out << endl;
 			out.close();
-	}	
+	}
     env.end();
     return 0;
-}   
+}
 
 double subprob(Subprob& subp, const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag)
 {
@@ -817,7 +817,7 @@ void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vec
 		mastermodel.add(range);
 		lhs.end();
 	}
-	
+
 	// Adding objective
 	IloExpr obj(env);
 	for (int i = 0; i < prob.nbFirstVars; ++i)
@@ -869,7 +869,7 @@ void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vec
 	Subprob subp;
 	construct_second_opt(env, prob, subp);
 	construct_second_feas(env, prob, subp);
-	
+
 	int nbScens = samples.size();
 
 	// This part needs to be changed into Level method iteration
@@ -878,7 +878,7 @@ void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vec
 		feas_flag = 1;
 		IloEnv env2;
 		stat.iter++;
-		IloNumArray xiteratevals(env2, prob.nbFirstVars);			
+		IloNumArray xiteratevals(env2, prob.nbFirstVars);
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 		{
 			xiterateXf(j) = xiterate[j];
@@ -887,7 +887,7 @@ void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vec
 		double feasbound = 0.0;
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 			feasbound += xiterate[j]*prob.objcoef[j];
-		
+
 		IloExpr lhsaggr(env);
 		lhsaggr += theta;
 		IloExpr llhsaggr(lenv);
@@ -964,7 +964,7 @@ void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vec
 		mastercplex.solve();
 		stat.relaxobjval = mastercplex.getObjValue();
 		stat.mastertime += clock.getTime()-lasttime;
-		
+
 		// Now solve the qp level problem
 		// update the upper bound, (1-\lambda)F^{k+1}+\lambda F^*
 		rangeub.setUB(0.5*stat.relaxobjval + 0.5*stat.feasobjval);
@@ -1047,7 +1047,7 @@ void solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, int op
 	Subprob subp;
 	construct_second_opt(env, prob, subp);
 	construct_second_feas(env, prob, subp);
-	
+
 	// collection of dual multipliers
 	vector<DualInfo> dualInfoCollection;
 	VectorXf xiterateXf(prob.nbFirstVars);
@@ -1064,7 +1064,7 @@ void solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, int op
 
 	int nbIterEvalScens, nbIterSolScens;
 	double starttime = clock.getTime();
-	
+
 	// We create some safeguard in case we do not finish by satisfying the stopping criterion in nMax steps
 	double minGS = 1e8;
 	double minGCI = 1e8;
@@ -1346,7 +1346,7 @@ void solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, int op
 					SRP(env, prob, subp, clock, nbIterEvalScens, samplesForEval, G, S, xvals, xvals2, scenObjEval);
 					xvals2.end();
 					stat.evaltime += (clock.getTime()-tempEvaltime);
-					
+
 					// Check if the stopping criterion is met
 					if (option == 0)
 					{
@@ -1678,7 +1678,7 @@ void construct_second_feas(IloEnv& env, const TSLP& prob, Subprob& subprob)
 				lhs += subprob.subfeasy[ind-prob.nbFirstVars]*prob.CoefMat[i][j];
 		}
 		if (prob.secondconstrsense[i] != 0)
-			lhs += subprob.subfeasy[prob.nbSecVars+i];	
+			lhs += subprob.subfeasy[prob.nbSecVars+i];
 		else
 		{
 			lhs += subprob.subfeasy[prob.nbSecVars+i];
@@ -1745,7 +1745,7 @@ void simple_refine(const Component& component, const TSLP& prob, const vector<Il
 			bool distinctflag = 1;
 			for (int j = 0; j < index_points_represent.size(); ++j)
 			{
-				bool tempflag = compare_arrays(prob, extreme_points[index_points_represent[j]], extreme_points[i]);	
+				bool tempflag = compare_arrays(prob, extreme_points[index_points_represent[j]], extreme_points[i]);
 				if (tempflag == 1)
 				{
 					index_points[j].push_back(extreme_points_ind[i]);
@@ -1914,7 +1914,7 @@ bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, Subprob& subp, STAT& s
 		VectorXf cutcoefscen(prob.nbFirstVars);
 		cutcoefscen.setZero();
 		VectorXf aggrCoarseCut(prob.nbFirstVars);
-		vector<VectorXf> partcoef(partition.size()); 
+		vector<VectorXf> partcoef(partition.size());
 		vector<double> partrhs(partition.size());
 		double coarseLB, coarseCutRhs;
 		vector<double> scenObjs; // record scenario objectives
@@ -2170,7 +2170,7 @@ bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, Subprob& subp, STAT& s
 			nearOptimal = 1;
 		else
 			nearOptimal++;
-	}	
+	}
 	else
 	{
 		if (nearOptimal < 3)
@@ -2213,7 +2213,7 @@ void setup_bundle_QP(IloEnv& env, const TSLP& prob, IloCplex& cplex, IloModel& m
 	QPobj = IloMinimize(env);
 	model.add(QPobj);
 	IloExpr objExpr(env);
-	IloNumVarArray y(env,prob.nbFirstVars, 0, IloInfinity); 
+	IloNumVarArray y(env,prob.nbFirstVars, 0, IloInfinity);
 	for (int j = 0; j < prob.nbFirstVars; ++j)
 		objExpr += y[j];
 	QPobj.setExpr(objExpr);
@@ -2342,7 +2342,7 @@ double coarse_oracle(IloEnv& env, TSLP& prob, Subprob& subp, vector<Component>& 
 							DualInfo dual;
 							dual.dualvec = dualvec;
 							dual.coefvec = opt_cut_coef;
-							dual.rhs = subobjval; 
+							dual.rhs = subobjval;
 							for (int j = 0; j < prob.nbFirstVars; ++j)
 								dual.rhs += opt_cut_coef[j]*xvals[j];
 							dual.rhs -= rhsvecs[partition[i].indices[0]].dot(dualvec.segment(0, prob.nbSecRows));
@@ -2544,7 +2544,7 @@ double subprob_partition(Subprob& subp, IloNumArray& secvarlb, IloNumArray& secv
 
 bool solve_scen_subprobs(IloEnv& env, IloEnv& env2, const TSLP& prob, Subprob& subp, const vector<Component>& partition, const IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, IloModel& model, const IloNumVarArray& x, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<double>& scenObjs, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option)
 {
-	bool returnflag = 1; 
+	bool returnflag = 1;
  	for (int i = 0; i < partition.size(); ++i)
 	{
 		double sum_of_infeas = 0;
@@ -2578,7 +2578,7 @@ bool solve_scen_subprobs(IloEnv& env, IloEnv& env2, const TSLP& prob, Subprob& s
 							DualInfo dual;
 							dual.dualvec = dualvec;
 							dual.coefvec = opt_cut_coef;
-							dual.rhs = subobjval; 
+							dual.rhs = subobjval;
 							for (int j = 0; j < prob.nbFirstVars; ++j)
 								dual.rhs += opt_cut_coef[j]*xvals[j];
 							dual.rhs -= rhsvecs[partition[i].indices[k]].dot(dualvec.segment(0, prob.nbSecRows));
@@ -2672,7 +2672,7 @@ bool solve_scen_subprobs_target(IloEnv& env, IloEnv& env2, const TSLP& prob, Sub
 							DualInfo dual;
 							dual.dualvec = dualvec;
 							dual.coefvec = opt_cut_coef;
-							dual.rhs = subobjval; 
+							dual.rhs = subobjval;
 							for (int j = 0; j < prob.nbFirstVars; ++j)
 								dual.rhs += opt_cut_coef[j]*xvals[j];
 							dual.rhs -= rhsvecs[partition[i].indices[k]].dot(dualvec.segment(0, prob.nbSecRows));
@@ -2706,7 +2706,7 @@ bool solve_scen_subprobs_target(IloEnv& env, IloEnv& env2, const TSLP& prob, Sub
 				extreme_rays[j].end();
 			if (coarseLB > descent_target)
 			{
-				// If hopeless to achieve the descent target, break out of loop 
+				// If hopeless to achieve the descent target, break out of loop
 				for (int j = ind+1; j < partition.size(); ++j)
 					new_partition.push_back(partition[sizelist[j].ind]);
 				break;
@@ -2841,7 +2841,7 @@ void solve_adaptive_partition(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 		tempstat0.warmstarttime = 0;
 		tempstat0.warmstartcuttime = 0;
 		tempstat0.iter = 0;
-	
+
 		bool solFlag;
 
 		stat.solvetime = clock.getTime()-starttime;
@@ -2884,13 +2884,13 @@ void solve_adaptive_partition(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 			// problem did not get solved most likely because of time limit, abort using previous stat
 			iterflag = 0;
 		}
-	
+
 		else
 		{
 			cout << "# of inner iterations = " << tempstat0.iter << endl;
 			if (iter > 0 && option == 5)
 			{
-				// option = 5: use a simple heuristic "trust region" idea to adjust the sample size increasing rate		
+				// option = 5: use a simple heuristic "trust region" idea to adjust the sample size increasing rate
 				if (tempstat0.iter <= 2)
 				{
 					// increase the increasing rate
@@ -2905,7 +2905,7 @@ void solve_adaptive_partition(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 					}
 					else
 					{
-						// otherwise, i.e., inner iter = 3, 4, stay the same 
+						// otherwise, i.e., inner iter = 3, 4, stay the same
 					}
 				}
 				if (prob.increaseRate < 0.05)
@@ -2963,7 +2963,7 @@ void solve_adaptive_partition(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 				SRP(env, prob, subp, clock, nbIterEvalScens, samplesForEval, G, S, xvals, xvals2, scenObjEval);
 				xvals2.end();
 				stat.evaltime += (clock.getTime()-tempEvaltime);
-				
+
 				// Check if the stopping criterion is met
 				if (option == 0 || option == 1 || option == 2)
 				{
@@ -3027,7 +3027,7 @@ void solve_adaptive_partition(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 			xvals.end();
 		}
 	}
-	
+
 	// Now check if this estimation is correct by evaluating \hat{x}_k using the true distribution (all samples)
 	finalEval(env, prob, subp, xiterateXf, stat);
 	stat.mainIter = iter;
@@ -3236,7 +3236,7 @@ double solve_warmstart(IloEnv& env, const TSLP& prob, const vector<int>& samples
 
 void SRP(IloEnv& env, TSLP& prob, Subprob& subp, IloTimer& clock, int nbIterEvalScens, const vector<int>& samplesForEval, double& G, double& S, const IloNumArray& xvals, const IloNumArray& xvals2, vector<double>& scenObjEval)
 {
-	vector<double> scenObj2(nbIterEvalScens);	
+	vector<double> scenObj2(nbIterEvalScens);
 	for (int k = 0; k < nbIterEvalScens; ++k)
 	{
 		// solve subproblems for each scenario
@@ -3260,7 +3260,7 @@ void SRP(IloEnv& env, TSLP& prob, Subprob& subp, IloTimer& clock, int nbIterEval
 		scenObjEval[k] = subobjval;
 		scenObj2[k] = subobjval2;
 	}
-	
+
 	// Use n_k (independent) samples to evaluate this candidate solution: compute G and S
 	for (int k = 0; k < nbIterEvalScens; ++k)
 		G += (scenObjEval[k]-scenObj2[k]);

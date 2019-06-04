@@ -1,25 +1,11 @@
 /*
    Functions used to execute option 1 in the main function.
    *****Insert description of option 1.*****
-
-
 */
 
-// Only solve_level is different from option 0
-
-if (option == 1)
-{
-  // Level method
-  vector<int> samples;
-  for (int k = 0; k < prob.nbScens; ++k)
-    samples.push_back(k);
-  VectorXf xiterateXf(prob.nbFirstVars);
-  solve_level(env, prob, stat, clock, samples, xiterateXf, 0);
-  cout << "relaxobjval = " << stat.relaxobjval << endl;
-  cout << "feasobjval = " << stat.feasobjval << endl;
-  cout << "optimality gap = " << (stat.feasobjval-stat.relaxobjval)*1.0/(fabs(stat.feasobjval)+1e-10) << endl;
-}
-
+/*
+  *****insert function header*****
+*/
 void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option)
 {
 	// Level: level method starts with the mean-value solution
