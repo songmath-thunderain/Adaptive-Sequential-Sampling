@@ -16,9 +16,11 @@ extern "C"{
 }
 #include <time.h>
 
+#include "Extended.h"
+
 using namespace std;
-using Eigen::MatrixXf;
-using Eigen::VectorXf;
+//using Eigen::MatrixXf;
+//using Eigen::VectorXf;
 
 double t_quant = 1.282; // For simplicity, just use z quantile (independent of degree of freedom), since sample sizes are usually large in the end
 
@@ -28,15 +30,26 @@ int main(int argc, char **argv)
 {
 	// Run program like this:
 	// ./adaptiveSamples new_sample_instances/***.dat results/temp 1 0 0.5 1e-3 
+
+	/*
+	"C:\Users\3deva\source\repos\adaptiveSamples\x64\Release\adaptiveSamples.exe" 
+	"C:\Users\3deva\source\repos\adaptiveSamples\instances\20x20-1-20000-1-clean.dat" 
+	"C:\Users\3deva\source\repos\adaptiveSamples\results\temp" -1 0 0.5 1e-3 5
+	*/
+
+
 	// option: -1 - extensive, 0 - Benders single, 1 - level, 2 - partly inexact bundle defined by partitions, 3 - sequential, 4 - adaptive, 5 - adaptive + partition, 6 - solve instances with a given # of samples in a retrospective way
 	// suboption: only apply for option = 3, 4, 5
 		// Option = 3: sequential - 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP
 		// Option = 4: adaptive (solve SAA up to sample errors) - 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP; 3: fixed rate after B&M fails
    		// Option = 5: adaptive + warmup by partition - 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP; 3: fixed rate after B&M fails; 4: fixed rate all over;  5: a heuristic rule to adjust sample size increase rate by some "trust region" rule	
 	// Alternative use of suboption for option = 6: # of samples used
+
     cout << "Importing data..." << endl;
+	//cout << "Hello\n";
     IloEnv env;
     TSLP prob;
+
 	/*
     prob.firstconstrind = IntMatrix(env);
     prob.firstconstrcoef = NumMatrix(env);
@@ -75,12 +88,24 @@ int main(int argc, char **argv)
 	prob.distinct_par = 1e-6;
 	prob.randomseed = atoi(argv[7]);
 	srand(prob.randomseed);
+
+	/*
+	cout << "argv[0] : " << argv[0] << endl;
+	cout << "argv[1] : " << argv[1] << endl;
+	cout << "argv[2] : " << argv[2] << endl;
+	cout << "argv[3] : " << argv[3] << endl;
+	cout << "argv[4] : " << argv[4] << endl;
+	cout << "argv[5] : " << argv[5] << endl;
+	cout << "argv[6] : " << argv[6] << endl;
+	cout << "argv[7] : " << argv[7] << endl;
+	*/
+
 	ifstream file(filename);
     if (!file)
     {
 	cerr << "ERROR: could not open file '" << filename
 	     << "' for reading" << endl;
-	cerr << "usage:  " << argv[0] << " <file>" << endl;
+	cerr << "usage:  " << argv[0] << " <file>" << endl; //perviously was argv[0]
         throw(-1);
     }
 	cout << "before reading..." << endl;
@@ -100,6 +125,7 @@ int main(int argc, char **argv)
 	prob.secondconstrbd = IloNumArray(env, prob.nbSecRows);
 	prob.secondconstrsense = IloIntArray(env, prob.nbSecRows);
 	*/
+
 	cout << "after reading..." << endl;
 	prob.nbFirstVars = profile[0];
 	prob.nbSecVars = profile[1];
@@ -143,7 +169,11 @@ int main(int argc, char **argv)
 	if (option == -1)
 	{
 		// extended formulation
-		solve_extended(env, prob, stat, clock);
+		// solve_extended(env, prob, stat, clock);
+	
+		Extended extend_form(env, prob, stat, clock);
+		extend_form.solve_extended;
+
 	}
 	if (option == 0)
 	{
@@ -527,7 +557,7 @@ double solve_mean_value_model(const TSLP& prob, IloEnv& meanenv, IloNumArray& me
 	meany.end();
 	return returnval;
 }
-
+/*
 void solve_extended(IloEnv& env, const TSLP& prob, STAT& stat, IloTimer& clock)
 {
 	IloModel model(env);
@@ -614,7 +644,7 @@ void solve_extended(IloEnv& env, const TSLP& prob, STAT& stat, IloTimer& clock)
 	mod.x.end();
 	mod.y.end();
 }
-
+*/
 void solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf)
 {
 	// Benders: single cut
