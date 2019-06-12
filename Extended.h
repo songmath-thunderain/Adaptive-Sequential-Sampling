@@ -1,29 +1,23 @@
 #ifndef EXTENDED_H
 #define EXTENDED_H
 
-#include "adaptiveSamples.h"
 #include <stdio.h>
 #include <stdlib.h>
-//#include <ilcplex/ilocplex.h>
-//#include <ilconcert/iloenv.h>
+#include <iostream>
+#include "adaptiveSamples.h"
+
+using namespace std;
 
 class Extended
 {
-	
-  private:
-    IloEnv env;  //Is & needed or not?
-    TSLP prob;
-    STAT stat;
-    IloTimer clock;
-
-  public:
+public:
 	//Constructor
-    Extended(IloEnv& extend_env, const TSLP& extend_prob, STAT& extend_stat, IloTimer& extend_clock);
-    
+	Extended();
+
 	//Deconstructor
 	~Extended();
 
-    void solve_extended();
-};
+	void solve_extended(IloEnv& env, const TSLP& prob, STAT& stat, IloTimer& clock);
 
+};
 #endif
