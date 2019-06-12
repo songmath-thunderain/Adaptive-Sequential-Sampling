@@ -2,10 +2,14 @@
   Dec. 20, 2017
  */
 
+#ifndef ADAPTIVESAMPLES_H
+#define ADAPTIVESAMPLES_H
+
+
 #include <ilcplex/ilocplex.h>
 #include <vector>
 #include <set>
-#include <Eigen>
+#include <Eigen/Dense>
 
 using namespace std;
 using Eigen::MatrixXf;
@@ -129,7 +133,7 @@ public:
 		{ ind = i; val = v; }
 };
 
-bool operator<(const IndexVal& a, const IndexVal& b) {
+static bool operator<(const IndexVal& a, const IndexVal& b) {
 	if (a.val > b.val)
 		return true;
 	else if (a.val < b.val)
@@ -140,7 +144,7 @@ bool operator<(const IndexVal& a, const IndexVal& b) {
 		return false;
 }
 
-bool operator>(const IndexVal& a, const IndexVal& b) {
+static bool operator>(const IndexVal& a, const IndexVal& b) {
 	if (a.val < b.val)
 		return true;
 	else if (a.val > b.val)
@@ -167,7 +171,7 @@ bool compare_arrays(const TSLP& prob, const IloNumArray& array1, const IloNumArr
 
 double solve_mean_value_model(const TSLP& prob, IloEnv& meanenv, IloNumArray& meanxvals, const vector<int>& samples);
 
-void solve_extended(IloEnv& env, const TSLP& prob, STAT& stat, IloTimer& clock);
+//void solve_extended(IloEnv& env, const TSLP& prob, STAT& stat, IloTimer& clock);
 
 void solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf);
 
@@ -209,4 +213,6 @@ void BMschedule(Sequence& seq);
 
 void sequentialSetup(Sequence& seq, int option);
 
-void finalEval(IloEnv& env, TSLP& prob, Subprob& subp, const VectorXf& xiterateXf, STAT& stat);
+void finalEval(IloEnv& env, TSLP& prob, Subprob& subp, const VectorXf& xiterateXf, STAT& stat); 
+
+#endif
