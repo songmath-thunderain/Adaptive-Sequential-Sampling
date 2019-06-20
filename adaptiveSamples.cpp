@@ -6,7 +6,7 @@
 #include <iostream>
 #include <ilcplex/ilocplex.h>
 #include "adaptiveSamples.h"
-#include <Eigen>
+#include <Eigen/Dense>
 #include <vector>
 #include <algorithm>
 #include <cmath>
