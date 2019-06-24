@@ -17,12 +17,25 @@ class masterProblem {
     IloTimer& clock;
     const vector<int>& samples;
     VectorXf& xiterateXf;
-    int option = -1;
-    void singleCut();
-    void level();
+    // *** only in solve_level
+    IloEnv meanenv;
+    IloNumArray meanxvals;
+    double meanobj;
+    // ***
+    IloModel mastermodel;
+  	IloNumVarArray x;
+  	IloNumVar theta;
+    IloCplex mastercplex;
+
+    // Helper Functions
+    IloRange find_constraint(int i);
+    void add_objective();
+    // ***
 
   public:
-    void subProblem();
+    masterProblem();
+    ~masterProblem();
+    void first_stage_constraints();
 };
 
 #endif
