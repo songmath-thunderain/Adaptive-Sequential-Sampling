@@ -1,10 +1,10 @@
 #ifndef EXTENDED_H
 #define EXTENDED_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <iostream>
 #include "adaptiveSamples.h"
+#include "Subproblem.h"
+#include "structs.h"
+
 
 using namespace std;
 
