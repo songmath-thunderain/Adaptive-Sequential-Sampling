@@ -5,6 +5,7 @@
 #define MASTERPROBLEM_H
 
 #include "structs.h"
+//#inclue "adaptiveSamples.h"
 using Eigen::VectorXf;
 
 class masterProblem {
