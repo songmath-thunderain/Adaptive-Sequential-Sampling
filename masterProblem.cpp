@@ -12,6 +12,8 @@
     // *** only solve_level
     meanxvals(meanenv);
     meanobj = solve_mean_value_model(TSLP& prob, IloEnv meanenv, IloNumArray meanxvals, const vector<int>& samples);
+    meanxvals.end();
+    meanobj.end();
     // ***
     mastermodel(env);
     x(env, prob.firstvarlb, prob.firstvarub);
