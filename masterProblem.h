@@ -4,10 +4,8 @@
 #ifndef MASTERPROBLEM_H
 #define MASTERPROBLEM_H
 
+#include "structs.h"
 using Eigen::VectorXf;
-
-void solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf);
-void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option);
 
 class masterProblem {
   private:
@@ -30,7 +28,6 @@ class masterProblem {
     // Helper Functions
     IloRange find_constraint(int i);
     void add_objective();
-    // ***
 
   public:
     masterProblem();
