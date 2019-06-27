@@ -3,13 +3,12 @@
 #define SUBPROBLEM_H
 
 #include "structs.h"
-//#include "adaptiveSamples.h"
 
 
 using namespace std;
 
-struct Subprob
-{
+class Subproblem {
+private:
 	IloModel suboptmodel;
 	IloRangeArray suboptcon;
 	IloNumVarArray subopty;
@@ -18,20 +17,17 @@ struct Subprob
 	IloRangeArray subfeascon;
 	IloNumVarArray subfeasy;
 	IloCplex subfeascplex;
-};
-
-class Subproblem {
 
 public:
-	Subproblem();
+	Subproblem(IloEnv& env, const TSLP& prob);
 
 	~Subproblem();
 
-	double subprob(Subprob& subp, const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag);
+	double solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag);
 
-	void construct_second_opt(class IloEnv&, const TSLP&, Subprob&);
+	void construct_second_opt(class IloEnv&, const TSLP&);
 
-	void construct_second_feas(class IloEnv&, const TSLP&, Subprob&);
+	void construct_second_feas(class IloEnv&, const TSLP&);
 
 };
 
