@@ -17,9 +17,17 @@ class masterProblem {
     const vector<int>& samples;
     VectorXf& xiterateXf;
     // *** only in solve_level
-    IloEnv meanenv;
-    IloNumArray meanxvals;
-    double meanobj;
+      // Setup
+      IloEnv meanenv;
+      IloNumArray meanxvals;
+      double meanobj;
+      // quadratic
+      IloEnv lenv;
+      IloModel levelmodel;
+      IloNumVarArray lx;
+      IloNumVar ltheta;
+      IloCplex levelcplex;
+
     // ***
     IloModel mastermodel;
   	IloNumVarArray x;
@@ -34,6 +42,7 @@ class masterProblem {
     masterProblem();
     ~masterProblem();
     void first_stage_constraints();
+    void define_first_level_constraint();
 };
 
 #endif

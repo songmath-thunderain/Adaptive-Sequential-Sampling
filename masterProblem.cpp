@@ -14,11 +14,15 @@
     meanobj = solve_mean_value_model(TSLP& prob, IloEnv meanenv, IloNumArray meanxvals, const vector<int>& samples);
     meanxvals.end();
     meanobj.end();
+      // quadratic master
+      levelmodel(lenv);
+      lx(lenv, prob.firstvarlb, prob.firstvarub);
+      ltheta(lenv, -IloInfinity, IloInfinity);
     // ***
+
     mastermodel(env);
     x(env, prob.firstvarlb, prob.firstvarub);
     theta(env, 0, IloInfinity);
-    mastercplex(mastermodel);
   }
 
   /*
@@ -27,6 +31,11 @@
   masterProblem::~masterProblem() {
     mastercplex.end();
     mastermodel.end();
+    // *** quadratic (only in solve_level)
+    levelcplex.end();
+  	levelmodel.end();
+  	lx.end();
+    // ***
     x.end();
   }
 
@@ -38,6 +47,28 @@
   	{
       mastermodel.add(find_constraint(i));
   	}
+  }
+
+  /*
+    Set initial constraint in quadratic master problem.
+  */
+  void define_first_level_constraint() {
+    IloExpr lsum(lenv);
+    for (int j = 0; j < prob.nbFirstVars; ++j)
+  		lsum += lx[j] * prob.objcoef[j];
+  	lsum += ltheta;
+  	IloRange rangeub(lenv, -IloInfinity, lsum, IloInfinity);
+  	levelmodel.add(rangeub);
+  	lsum.end();
+
+    IloObjective lobj = IloMinimize(lenv);
+    levelmodel.add(lobj);
+
+    levelcplex(levelmodel);
+    levelcplex.setParam(IloCplex::TiLim, 10800);
+    levelcplex.setParam(IloCplex::Threads, 1);
+    levelcplex.setParam(IloCplex::BarDisplay, 0);
+    levelcplex.setOut(env.getNullStream());
   }
 
   /*
@@ -64,7 +95,7 @@
   	obj += theta;
   	mastermodel.add(IloMinimize(env, obj));
   	obj.end();
-  	IloCplex mastercplex(mastermodel);
+  	mastercplex(mastermodel);
   	mastercplex.setParam(IloCplex::TiLim,10800);
   	mastercplex.setParam(IloCplex::Threads, 1);
   	// Barrier
