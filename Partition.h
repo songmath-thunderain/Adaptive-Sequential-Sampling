@@ -8,12 +8,15 @@
 #include "SolveScen_Fun.h"
 
 using namespace std;
+// using Eigen::VectorXf;
+
 
 class Partition {
 
 private:
-	vector<int> partition;
-
+	vector<component> partition;
+	masterProblem masterProb;
+	Subproblem subProb;
 
 public:
 	Partition();
