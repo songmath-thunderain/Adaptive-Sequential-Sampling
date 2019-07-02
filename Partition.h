@@ -14,7 +14,7 @@ using namespace std;
 class Partition {
 
 private:
-	vector<component> partition;
+	vector<Component> partition;
 	masterProblem masterProb;
 	Subproblem subProb;
 
