@@ -1,5 +1,6 @@
 #include "Subproblem.h"
 
+//Constructor
 Subproblem::Subproblem(class IloEnv& env, const TSLP& prob)
 {
 	//Construct Second Opt
@@ -26,12 +27,17 @@ Subproblem::Subproblem(class IloEnv& env, const TSLP& prob)
 	subfeascplex.setOut(env.getNullStream());
 }
 
+//Deconstructor
 Subproblem::~Subproblem()
 {
-	suboptmodel.end(); 
 	suboptcplex.end();
-	subfeasmodel.end();
+	suboptmodel.end();
+	suboptcon.end();
+	subopty.end();
 	subfeascplex.end();
+	subfeasmodel.end();
+	subfeascon.end();
+	subfeasy.end();
 }
 
 double Subproblem::solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag)
