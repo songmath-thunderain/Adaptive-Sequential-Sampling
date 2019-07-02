@@ -8,7 +8,7 @@
 //#inclue "adaptiveSamples.h"
 using Eigen::VectorXf;
 
-class masterProblem {
+class MasterProblem {
   private:
     IloEnv& env;
     TSLP& prob;
@@ -39,8 +39,8 @@ class masterProblem {
     void add_objective();
 
   public:
-    masterProblem();
-    ~masterProblem();
+    MasterProblem();
+    ~MasterProblem();
     void first_stage_constraints();
     void define_first_level_constraint();
 };

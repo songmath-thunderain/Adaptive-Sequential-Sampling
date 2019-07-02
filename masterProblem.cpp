@@ -3,12 +3,12 @@
   Interacts with subproblems to improve approximations.
 */
 
-#include "masterProblem.h"
+#include "MasterProblem.h"
 
   /*
     Constructor
   */
-  masterProblem::masterProblem(/* input variables at least need option */) {
+  MasterProblem::MasterProblem(/* input variables at least need option */) {
     // *** only solve_level
     meanxvals(meanenv);
     meanobj = solve_mean_value_model(TSLP& prob, IloEnv meanenv, IloNumArray meanxvals, const vector<int>& samples);
@@ -28,7 +28,7 @@
   /*
     Destructor
   */
-  masterProblem::~masterProblem() {
+  MasterProblem::~MasterProblem() {
     mastercplex.end();
     mastermodel.end();
     // *** quadratic (only in solve_level)
