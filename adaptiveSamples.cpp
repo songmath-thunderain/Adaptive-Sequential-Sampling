@@ -7,6 +7,7 @@
 #include "adaptiveSamples.h"
 #include "Extended.h"
 #include "Subproblem.h"
+#include "Partition.h"
 //#include "Partition.h"
 
 //Subproblem sub_call;
@@ -23,7 +24,9 @@ int main(int argc, char **argv)
 	// ./adaptiveSamples new_sample_instances/***.dat results/temp 1 0 0.5 1e-3 
 
 
-	/*"C:\Users\3deva\source\repos\adaptiveSamples\x64\Release\adaptiveSamples.exe" "C:\Users\3deva\source\repos\adaptiveSamples\instances\20x20-1-20000-1-clean.dat" "C:\Users\3deva\source\repos\adaptiveSamples\results\temp" -1 0 0.5 1e-3 5*/
+	/*
+	"C:\Users\3deva\source\repos\adaptiveSamples\x64\Release\adaptiveSamples.exe" "C:\Users\3deva\source\repos\adaptiveSamples\instances\20x20-1-20000-1-clean.dat" "C:\Users\3deva\source\repos\adaptiveSamples\results\temp" -1 0 0.5 1e-3 5
+	*/
 	// option: -1 - extensive, 0 - Benders single, 1 - level, 2 - partly inexact bundle defined by partitions, 3 - sequential, 4 - adaptive, 5 - adaptive + partition, 6 - solve instances with a given # of samples in a retrospective way
 	// suboption: only apply for option = 3, 4, 5
 		// Option = 3: sequential - 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP
@@ -193,11 +196,10 @@ int main(int argc, char **argv)
 				samples.push_back(rand() % prob.nbScens);
 		}
 		VectorXf xiterateXf(prob.nbFirstVars);
-		Subprob subp;
-
-		Subproblem sub_call;
-		sub_call.construct_second_opt(env, prob, subp);
-		sub_call.construct_second_feas(env, prob, subp);
+		//Subprob subp;
+		Subproblem sub_call(env, prob);
+		sub_call.construct_second_opt(env, prob);
+		sub_call.construct_second_feas(env, prob);
 		
 		vector<DualInfo> dualInfoCollection;
 		vector<VectorXf> rhsvecs;
@@ -210,11 +212,12 @@ int main(int argc, char **argv)
 			rhsvecs.push_back(rhsXf);
 		}
 		int nearOptimal = 0;
-		bool tempflag = solve_partly_inexact_bundle(env, prob, subp, stat, clock, samples, xiterateXf, 0, 1, dualInfoCollection, rhsvecs, nearOptimal, TIMELIMIT);
+		bool tempflag = solve_partly_inexact_bundle(env, prob, stat, clock, samples, xiterateXf, 0, 1, dualInfoCollection, rhsvecs, nearOptimal, TIMELIMIT);
 		cout << "xiterateXf = ";
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 			cout << xiterateXf[j] << " ";
 		cout << endl;
+		/*
 		subp.suboptcplex.end();
 		subp.suboptmodel.end();
 		subp.suboptcon.end();
@@ -223,6 +226,7 @@ int main(int argc, char **argv)
 		subp.subfeasmodel.end();
 		subp.subfeascon.end();
 		subp.subfeasy.end();
+		*/
 	}
 	/*
 	if (option == 3)
@@ -278,135 +282,6 @@ int main(int argc, char **argv)
     env.end();
     return 0;
 }   
-
-double subprob(Subprob& subp, const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag)
-{
-	// First try solving the optimization model
-	// Set constraint bounds
-	for (int i = 0; i < prob.nbSecRows; ++i)
-	{
-		double bd = prob.secondconstrbd[k * prob.nbSecRows + i];
-		for (int j = 0; j < prob.nbPerRow[i]; ++j)
-		{
-			int ind = prob.CoefInd[i][j];
-			if (ind < prob.nbFirstVars)
-				bd -= prob.CoefMat[i][j] * xvals[ind];
-		}
-		if (prob.secondconstrsense[i] == -1)
-			subp.suboptcon[i].setLB(bd);
-		if (prob.secondconstrsense[i] == 0)
-		{
-			if (subp.suboptcon[i].getUB() < bd)
-			{
-				subp.suboptcon[i].setUB(bd);
-				subp.suboptcon[i].setLB(bd);
-			}
-			else
-			{
-				subp.suboptcon[i].setLB(bd);
-				subp.suboptcon[i].setUB(bd);
-			}
-		}
-		if (prob.secondconstrsense[i] == 1)
-			subp.suboptcon[i].setUB(bd);
-	}
-	// Set variable bounds
-	for (int j = 0; j < prob.nbSecVars; ++j)
-	{
-		if (prob.secondvarlb[k * prob.nbSecVars + j] != -IloInfinity)
-			subp.suboptcon[prob.nbSecRows + j].setLB(prob.secondvarlb[k * prob.nbSecVars + j]);
-		else
-			subp.suboptcon[prob.nbSecRows + j].setLB(-IloInfinity);
-		if (prob.secondvarub[k * prob.nbSecVars + j] != IloInfinity)
-			subp.suboptcon[prob.nbSecRows + prob.nbSecVars + j].setLB(-prob.secondvarub[k * prob.nbSecVars + j]);
-		else
-			subp.suboptcon[prob.nbSecRows + prob.nbSecVars + j].setLB(-IloInfinity);
-	}
-	subp.suboptcplex.solve();
-	double returnval;
-	if (subp.suboptcplex.getStatus() == IloAlgorithm::Optimal)
-	{
-		returnval = subp.suboptcplex.getObjValue();
-		subp.suboptcplex.getDuals(duals, subp.suboptcon);
-		feasflag = 1;
-	}
-	else
-	{
-		feasflag = 0;
-		// infeasible! Get extreme rays
-		for (int i = 0; i < prob.nbSecRows; ++i)
-		{
-			double bd = prob.secondconstrbd[k * prob.nbSecRows + i];
-			for (int j = 0; j < prob.nbPerRow[i]; ++j)
-			{
-				int ind = prob.CoefInd[i][j];
-				if (ind < prob.nbFirstVars)
-					bd -= prob.CoefMat[i][j] * xvals[ind];
-			}
-			if (prob.secondconstrsense[i] == -1)
-				subp.subfeascon[i].setLB(bd);
-			if (prob.secondconstrsense[i] == 0)
-			{
-				if (subp.subfeascon[i].getUB() < bd)
-				{
-					subp.subfeascon[i].setUB(bd);
-					subp.subfeascon[i].setLB(bd);
-				}
-				else
-				{
-					subp.subfeascon[i].setLB(bd);
-					subp.subfeascon[i].setUB(bd);
-				}
-			}
-			if (prob.secondconstrsense[i] == 1)
-				subp.subfeascon[i].setUB(bd);
-		}
-		for (int j = 0; j < prob.nbSecVars; ++j)
-		{
-			if (prob.secondvarlb[k * prob.nbSecVars + j] != -IloInfinity)
-				subp.subfeascon[prob.nbSecRows + j].setLB(prob.secondvarlb[k * prob.nbSecVars + j]);
-			else
-				subp.subfeascon[prob.nbSecRows + j].setLB(-IloInfinity);
-			if (prob.secondvarub[k * prob.nbSecVars + j] != IloInfinity)
-				subp.subfeascon[prob.nbSecRows + prob.nbSecVars + j].setLB(-prob.secondvarub[k * prob.nbSecVars + j]);
-			else
-				subp.subfeascon[prob.nbSecRows + prob.nbSecVars + j].setLB(-IloInfinity);
-		}
-		subp.subfeascplex.solve();
-		subp.subfeascplex.getDuals(duals, subp.subfeascon);
-		returnval = subp.subfeascplex.getObjValue();
-	}
-	return returnval;
-}
-
-void gen_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNumArray& xvals, const vector<int>& extreme_ray_map, const vector<IloNumArray>& extreme_rays, const vector<int>& extreme_rays_ind, const double sum_of_infeas, IloModel& model, const IloNumVarArray& x)
-{
-	vector<double> feas_cut_coef(prob.nbFirstVars, 0);
-	double sum_xvals = 0.0;
-	for (int j = 0; j < extreme_ray_map.size(); ++j)
-	{
-		int ind = extreme_ray_map[j];
-		for (int i = 0; i < prob.nbSecRows; ++i)
-		{
-			for (int j = 0; j < prob.nbPerRow[i]; ++j)
-			{
-				if (prob.CoefInd[i][j] < prob.nbFirstVars)
-				{
-					feas_cut_coef[prob.CoefInd[i][j]] += prob.CoefMat[i][j] * extreme_rays[ind][i];
-					sum_xvals += prob.CoefMat[i][j] * extreme_rays[ind][i] * xvals[prob.CoefInd[i][j]];
-				}
-			}
-		}
-	}
-	IloExpr lhs(env);
-	for (int j = 0; j < prob.nbFirstVars; ++j)
-	{
-		if (fabs(feas_cut_coef[j]) > 1e-7)
-			lhs += x[j] * feas_cut_coef[j];
-	}
-	model.add(lhs >= sum_of_infeas + sum_xvals);
-	lhs.end();
-}
 
 void preprocessing(IloEnv& env, TSLP& prob)
 {
@@ -1507,259 +1382,14 @@ void addInitialCuts(IloEnv& env, TSLP& prob, IloModel& mastermodel, const IloNum
 	}
 }
 
-void construct_second_opt(IloEnv& env, const TSLP& prob, Subprob& subprob)
-{
-	subprob.suboptmodel = IloModel(env);
-	subprob.suboptcon = IloRangeArray(env);
-	subprob.subopty = IloNumVarArray(env, prob.nbSecVars, -IloInfinity, IloInfinity);
-	subprob.suboptcplex = IloCplex(subprob.suboptmodel);
-	subprob.suboptcplex.setParam(IloCplex::TiLim, 3600);
-	subprob.suboptcplex.setParam(IloCplex::Threads, 1);
-	subprob.suboptcplex.setParam(IloCplex::SimDisplay, 0);
-	subprob.suboptcplex.setParam(IloCplex::BarDisplay, 0);
-	subprob.suboptcplex.setParam(IloCplex::EpRHS, 5e-6);
-	subprob.suboptcplex.setOut(env.getNullStream());
-	// second-stage constraints
-	for (int i = 0; i < prob.nbSecRows; ++i)
-	{
-		IloExpr lhs(env);
-		for (int j = 0; j < prob.nbPerRow[i]; ++j)
-		{
-			int ind = prob.CoefInd[i][j];
-			if (ind >= prob.nbFirstVars)
-				lhs += subprob.subopty[ind - prob.nbFirstVars] * prob.CoefMat[i][j];
-		}
-		IloRange range(env, -IloInfinity, lhs, IloInfinity);
-		subprob.suboptcon.add(range);
-		subprob.suboptmodel.add(range);
-		lhs.end();
-	}
-	// second-stage variable bounds
-	for (int i = 0; i < prob.nbSecVars; ++i)
-	{
-		IloExpr lhs(env);
-		lhs += subprob.subopty[i];
-		IloRange range(env, -IloInfinity, lhs, IloInfinity);
-		subprob.suboptcon.add(range);
-		subprob.suboptmodel.add(range);
-		lhs.end();
-	}
-	for (int i = 0; i < prob.nbSecVars; ++i)
-	{
-		IloExpr lhs(env);
-		lhs -= subprob.subopty[i];
-		IloRange range(env, -IloInfinity, lhs, IloInfinity);
-		subprob.suboptcon.add(range);
-		subprob.suboptmodel.add(range);
-		lhs.end();
-	}
-	// second-stage obj
-	IloExpr suboptobj(env);
-	for (int i = 0; i < prob.objcoef.getSize(); ++i)
-	{
-		if (i >= prob.nbFirstVars)
-			suboptobj += subprob.subopty[i - prob.nbFirstVars] * prob.objcoef[i];
-	}
-	subprob.suboptmodel.add(IloMinimize(env, suboptobj));
-	suboptobj.end();
-}
-
-void construct_second_feas(IloEnv& env, const TSLP& prob, Subprob& subprob)
-{
-	subprob.subfeasmodel = IloModel(env);
-	subprob.subfeascon = IloRangeArray(env);
-	subprob.subfeasy = IloNumVarArray(env, prob.nbSecVars + prob.nbSecRows, -IloInfinity, IloInfinity);
-	subprob.subfeascplex = IloCplex(subprob.subfeasmodel);
-	subprob.subfeascplex.setParam(IloCplex::TiLim, 3600);
-	subprob.subfeascplex.setParam(IloCplex::Threads, 1);
-	subprob.subfeascplex.setParam(IloCplex::SimDisplay, 0);
-	subprob.subfeascplex.setParam(IloCplex::BarDisplay, 0);
-	subprob.subfeascplex.setOut(env.getNullStream());
-	vector<int> extra_ind(prob.nbSecRows, -1);
-	for (int j = 0; j < prob.nbSecRows; ++j)
-	{
-		if (prob.secondconstrsense[j] == -1)
-			subprob.subfeasy[prob.nbSecVars + j].setLB(0);
-		if (prob.secondconstrsense[j] == 0)
-		{
-			subprob.subfeasy[prob.nbSecVars + j].setLB(0);
-			IloNumVar temp(env, 0, IloInfinity);
-			subprob.subfeasy.add(temp);
-			extra_ind[j] = subprob.subfeasy.getSize() - 1;
-		}
-		if (prob.secondconstrsense[j] == 1)
-			subprob.subfeasy[prob.nbSecVars + j].setUB(0);
-	}
-	// second-stage constraints
-	for (int i = 0; i < prob.nbSecRows; ++i)
-	{
-		IloExpr lhs(env);
-		for (int j = 0; j < prob.nbPerRow[i]; ++j)
-		{
-			int ind = prob.CoefInd[i][j];
-			if (ind >= prob.nbFirstVars)
-				lhs += subprob.subfeasy[ind - prob.nbFirstVars] * prob.CoefMat[i][j];
-		}
-		if (prob.secondconstrsense[i] != 0)
-			lhs += subprob.subfeasy[prob.nbSecVars + i];
-		else
-		{
-			lhs += subprob.subfeasy[prob.nbSecVars + i];
-			lhs -= subprob.subfeasy[extra_ind[i]];
-		}
-		IloRange range(env, -IloInfinity, lhs, IloInfinity);
-		subprob.subfeascon.add(range);
-		subprob.subfeasmodel.add(range);
-		lhs.end();
-	}
-	// second-stage variable bounds
-	for (int i = 0; i < prob.nbSecVars; ++i)
-	{
-		IloExpr lhs(env);
-		lhs += subprob.subfeasy[i];
-		IloRange range(env, -IloInfinity, lhs, IloInfinity);
-		subprob.subfeascon.add(range);
-		subprob.subfeasmodel.add(range);
-		lhs.end();
-	}
-	for (int i = 0; i < prob.nbSecVars; ++i)
-	{
-		IloExpr lhs(env);
-		lhs -= subprob.subfeasy[i];
-		IloRange range(env, -IloInfinity, lhs, IloInfinity);
-		subprob.subfeascon.add(range);
-		subprob.subfeasmodel.add(range);
-		lhs.end();
-	}
-	// second-stage obj
-	IloExpr subfeasobj(env);
-	for (int i = 0; i < prob.nbSecRows; ++i)
-	{
-		if (prob.secondconstrsense[i] == -1)
-			subfeasobj += subprob.subfeasy[prob.nbSecVars + i];
-		if (prob.secondconstrsense[i] == 1)
-			subfeasobj -= subprob.subfeasy[prob.nbSecVars + i];
-		if (prob.secondconstrsense[i] == 0)
-		{
-			subfeasobj += subprob.subfeasy[prob.nbSecVars + i];
-			subfeasobj += subprob.subfeasy[extra_ind[i]];
-		}
-	}
-	subprob.subfeasmodel.add(IloMinimize(env, subfeasobj));
-	subfeasobj.end();
-}
-
-void simple_refine(const Component& component, const TSLP& prob, const vector<IloNumArray>& extreme_points, const vector<int>& extreme_points_ind, const vector<IloNumArray>& extreme_rays, const vector<int>& extreme_rays_ind, vector<Component>& new_partition, vector< vector<int> >& extreme_ray_map)
-{
-	// Simple refinement strategy by putting vectors together according to a distance threshold
-	vector<int> index_points_represent, index_rays_represent; // list of representing indices
-	vector< vector<int> > index_points, index_rays; // index globally defined
-	for (int i = 0; i < extreme_points.size(); ++i)
-	{
-		if (i == 0)
-		{
-			vector<int> newlist;
-			newlist.push_back(extreme_points_ind[i]);
-			index_points_represent.push_back(i);
-			index_points.push_back(newlist);
-		}
-		else
-		{
-			bool distinctflag = 1;
-			for (int j = 0; j < index_points_represent.size(); ++j)
-			{
-				bool tempflag = compare_arrays(prob, extreme_points[index_points_represent[j]], extreme_points[i]);
-				if (tempflag == 1)
-				{
-					index_points[j].push_back(extreme_points_ind[i]);
-					distinctflag = 0;
-					break;
-				}
-			}
-			if (distinctflag == 1)
-			{
-				vector<int> newlist;
-				newlist.push_back(extreme_points_ind[i]);
-				index_points_represent.push_back(i);
-				index_points.push_back(newlist);
-			}
-		}
-	}
-
-	for (int i = 0; i < extreme_rays.size(); ++i)
-	{
-		if (i == 0)
-		{
-			// Since this is the first one, create a group starting with this one
-			vector<int> newlist;
-			newlist.push_back(extreme_rays_ind[i]);
-			index_rays_represent.push_back(i);
-			index_rays.push_back(newlist);
-			vector<int> temp;
-			temp.push_back(i);
-			extreme_ray_map.push_back(temp);
-		}
-		else
-		{
-			bool distinctflag = 1;
-			for (int j = 0; j < index_rays_represent.size(); ++j)
-			{
-				bool tempflag = compare_arrays(prob, extreme_rays[index_rays_represent[j]], extreme_rays[i]);
-				if (tempflag == 1)
-				{
-					index_rays[j].push_back(extreme_rays_ind[i]);
-					extreme_ray_map[j].push_back(i);
-					distinctflag = 0;
-					break;
-				}
-			}
-			if (distinctflag == 1)
-			{
-				vector<int> newlist;
-				newlist.push_back(extreme_rays_ind[i]);
-				index_rays_represent.push_back(i);
-				index_rays.push_back(newlist);
-				vector<int> temp;
-				temp.push_back(i);
-				extreme_ray_map.push_back(temp);
-			}
-		}
-	}
-	for (int j = 0; j < index_rays.size(); ++j)
-	{
-		Component compo;
-		compo.indices = index_rays[j];
-		new_partition.push_back(compo);
-	}
-	for (int j = 0; j < index_points.size(); ++j)
-	{
-		Component compo;
-		compo.indices = index_points[j];
-		new_partition.push_back(compo);
-	}
-}
-
-bool compare_arrays(const TSLP& prob, const IloNumArray& array1, const IloNumArray& array2)
-{
-	// check if they are "equal" to each other
-	bool returnflag = 1;
-	for (int j = 0; j < array1.getSize(); ++j)
-	{
-		if (fabs((array1[j] - array2[j]) * 1.0 / (array1[j] + 1e-5)) > prob.distinct_par)
-		{
-			returnflag = 0;
-			break;
-		}
-	}
-	return returnflag;
-}
-
-bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, Subprob& subp, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option, bool initial, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int& nearOptimal, double remaintime)
+bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option, bool initial, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int& nearOptimal, double remaintime)
 {
 	// option = 0: Just use the relative opt gap, solution mode: 1e-6; option = 1: Use the adaptive sampling type threshold: when opt gap is small relative to the sample error, option = 2: use relative opt gap, evaluation mode: 1e-4
 	// initial = 0: a stability center is provided as xiterteXf from the previous iteration; initial = 1: the very first sampled problem solved
 	// Unified coarse/fine oracle as a partly inexact oracle
 
+	Subproblem subProb;
+	Partition part;
 
 	bool returnflag = 1;
 	if (option == 1)
@@ -1848,7 +1478,7 @@ bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, Subprob& subp, STAT& s
 		else
 		{
 			double lasttime = clock.getTime();
-			coarseLB = coarse_oracle(env, prob, subp, partition, xvals, feasboundscen, cutcoefscen, cplex, model, x, stat, center_cons, stab_center, cuts, cutrhs, aggrCoarseCut, coarseCutRhs, partcoef, partrhs, starttime, clock, scenObjs, samples, dualInfoCollection, rhsvecs, option);
+			coarseLB = coarse_oracle(env, prob, partition, xvals, feasboundscen, cutcoefscen, cplex, model, x, stat, center_cons, stab_center, cuts, cutrhs, aggrCoarseCut, coarseCutRhs, partcoef, partrhs, starttime, clock, scenObjs, samples, dualInfoCollection, rhsvecs, option);
 			stat.solvetime = clock.getTime() - starttime;
 			if (stat.solvetime > remaintime)
 			{
@@ -1910,13 +1540,13 @@ bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, Subprob& subp, STAT& s
 		if (firstloop == 1)
 		{
 			// just solve all the scenario subproblems
-			feas_flag = solve_scen_subprobs(env, env2, prob, subp, partition, xvals, feasboundscen, cutcoefscen, model, x, new_partition, stat, clock, scenObjs, dualInfoCollection, rhsvecs, option);
+			feas_flag = solve_scen_subprobs(env, env2, prob, partition, xvals, feasboundscen, cutcoefscen, model, x, new_partition, stat, clock, scenObjs, dualInfoCollection, rhsvecs, option);
 			fullupdateflag = 1;
 		}
 		else
 		{
 			// Solve scenario subproblems component by component, stop when hopeless to achieve descent target
-			feas_flag = solve_scen_subprobs_target(env, env2, prob, subp, partition, xvals, model, x, new_partition, stat, clock, partcoef, partrhs, descent_target, fullupdateflag, coarseLB, aggrCoarseCut, scenObjs, samples, dualInfoCollection, rhsvecs, option);
+			feas_flag = solve_scen_subprobs_target(env, env2, prob, partition, xvals, model, x, new_partition, stat, clock, partcoef, partrhs, descent_target, fullupdateflag, coarseLB, aggrCoarseCut, scenObjs, samples, dualInfoCollection, rhsvecs, option);
 		}
 		if (feas_flag == 1 && fullupdateflag == 1)
 		{
@@ -2358,115 +1988,6 @@ void setAggregatedBounds(const TSLP& prob, const vector<Component>& partition, I
 	}
 }
 
-double subprob_partition(Subprob& subp, IloNumArray& secvarlb, IloNumArray& secvarub, const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, const vector<Component>& partition, int k, bool& feasflag)
-{
-	// Set constraint bounds
-	for (int i = 0; i < prob.nbSecRows; ++i)
-	{
-		double bd = 0;
-		for (int l = 0; l < partition[k].indices.size(); ++l)
-		{
-			double subbd = prob.secondconstrbd[partition[k].indices[l] * prob.nbSecRows + i];
-			for (int j = 0; j < prob.nbPerRow[i]; ++j)
-			{
-				int ind = prob.CoefInd[i][j];
-				if (ind < prob.nbFirstVars)
-					subbd -= prob.CoefMat[i][j] * xvals[ind];
-			}
-			bd += subbd;
-		}
-		if (prob.secondconstrsense[i] == -1)
-			subp.suboptcon[i].setLB(bd);
-		if (prob.secondconstrsense[i] == 0)
-		{
-			if (subp.suboptcon[i].getUB() < bd)
-			{
-				subp.suboptcon[i].setUB(bd);
-				subp.suboptcon[i].setLB(bd);
-			}
-			else
-			{
-				subp.suboptcon[i].setLB(bd);
-				subp.suboptcon[i].setUB(bd);
-			}
-		}
-		if (prob.secondconstrsense[i] == 1)
-			subp.suboptcon[i].setUB(bd);
-	}
-	// Set variable bounds
-	for (int j = 0; j < prob.nbSecVars; ++j)
-	{
-		if (secvarlb[k * prob.nbSecVars + j] != -IloInfinity)
-			subp.suboptcon[prob.nbSecRows + j].setLB(secvarlb[k * prob.nbSecVars + j]);
-		else
-			subp.suboptcon[prob.nbSecRows + j].setLB(-IloInfinity);
-		if (secvarub[k * prob.nbSecVars + j] != IloInfinity)
-			subp.suboptcon[prob.nbSecRows + prob.nbSecVars + j].setLB(-secvarub[k * prob.nbSecVars + j]);
-		else
-			subp.suboptcon[prob.nbSecRows + prob.nbSecVars + j].setLB(-IloInfinity);
-	}
-	subp.suboptcplex.solve();
-	double returnval;
-	if (subp.suboptcplex.getStatus() == IloAlgorithm::Optimal)
-	{
-		returnval = subp.suboptcplex.getObjValue();
-		subp.suboptcplex.getDuals(duals, subp.suboptcon);
-		feasflag = 1;
-	}
-	else
-	{
-		feasflag = 0;
-		// infeasible! Get extreme rays
-		for (int i = 0; i < prob.nbSecRows; ++i)
-		{
-			double bd = 0;
-			for (int l = 0; l < partition[k].indices.size(); ++l)
-			{
-				double subbd = prob.secondconstrbd[partition[k].indices[l] * prob.nbSecRows + i];
-				for (int j = 0; j < prob.nbPerRow[i]; ++j)
-				{
-					int ind = prob.CoefInd[i][j];
-					if (ind < prob.nbFirstVars)
-						subbd -= prob.CoefMat[i][j] * xvals[ind];
-				}
-				bd += subbd;
-			}
-			if (prob.secondconstrsense[i] == -1)
-				subp.subfeascon[i].setLB(bd);
-			if (prob.secondconstrsense[i] == 0)
-			{
-				if (subp.subfeascon[i].getUB() < bd)
-				{
-					subp.subfeascon[i].setUB(bd);
-					subp.subfeascon[i].setLB(bd);
-				}
-				else
-				{
-					subp.subfeascon[i].setLB(bd);
-					subp.subfeascon[i].setUB(bd);
-				}
-			}
-			if (prob.secondconstrsense[i] == 1)
-				subp.subfeascon[i].setUB(bd);
-		}
-		for (int j = 0; j < prob.nbSecVars; ++j)
-		{
-			if (secvarlb[k * prob.nbSecVars + j] != -IloInfinity)
-				subp.subfeascon[prob.nbSecRows + j].setLB(secvarlb[k * prob.nbSecVars + j]);
-			else
-				subp.subfeascon[prob.nbSecRows + j].setLB(-IloInfinity);
-			if (secvarub[k * prob.nbSecVars + j] != IloInfinity)
-				subp.subfeascon[prob.nbSecRows + prob.nbSecVars + j].setLB(-secvarub[k * prob.nbSecVars + j]);
-			else
-				subp.subfeascon[prob.nbSecRows + prob.nbSecVars + j].setLB(-IloInfinity);
-		}
-		subp.subfeascplex.solve();
-		subp.subfeascplex.getDuals(duals, subp.subfeascon);
-		returnval = subp.subfeascplex.getObjValue();
-	}
-	return returnval;
-}
-
 bool solve_scen_subprobs(IloEnv& env, IloEnv& env2, const TSLP& prob, Subprob& subp, const vector<Component>& partition, const IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, IloModel& model, const IloNumVarArray& x, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<double>& scenObjs, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option)
 {
 	bool returnflag = 1;
@@ -2649,32 +2170,6 @@ bool solve_scen_subprobs_target(IloEnv& env, IloEnv& env2, const TSLP& prob, Sub
 		fullupdateflag = 1;
 	}
 	return returnflag;
-}
-
-void add_feas_cuts(IloEnv& env, TSLP& prob, const vector<Component>& partition, IloModel& model, const IloNumVarArray& x, const IloNumArray& xvals, double subobjval, const VectorXf& dualvec, int i)
-{
-	// Add feasibility cuts
-	vector<double> feas_cut_coef(prob.nbFirstVars, 0);
-	double sum_xvals = 0.0;
-	for (int ii = 0; ii < prob.nbSecRows; ++ii)
-	{
-		for (int j = 0; j < prob.nbPerRow[ii]; ++j)
-		{
-			if (prob.CoefInd[ii][j] < prob.nbFirstVars)
-			{
-				feas_cut_coef[prob.CoefInd[ii][j]] += prob.CoefMat[ii][j] * dualvec[ii] * partition[i].indices.size();
-				sum_xvals += prob.CoefMat[ii][j] * dualvec[ii] * partition[i].indices.size() * xvals[prob.CoefInd[ii][j]];
-			}
-		}
-	}
-	IloExpr lhsfeas(env);
-	for (int j = 0; j < prob.nbFirstVars; ++j)
-	{
-		if (fabs(feas_cut_coef[j]) > 1e-7)
-			lhsfeas += feas_cut_coef[j] * x[j];
-	}
-	model.add(lhsfeas >= subobjval + sum_xvals);
-	lhsfeas.end();
 }
 
 void solve_adaptive_partition(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, int option)
@@ -3246,6 +2741,7 @@ void sequentialSetup(Sequence& seq, int option)
 
 void finalEval(IloEnv& env, TSLP& prob, Subprob& subp, const VectorXf& xiterateXf, STAT& stat)
 {
+
 	IloNumArray finalxvals(env);
 	double finalObj = 0;
 	for (int j = 0; j < prob.nbFirstVars; ++j)

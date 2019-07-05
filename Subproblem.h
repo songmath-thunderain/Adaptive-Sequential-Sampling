@@ -3,13 +3,11 @@
 #define SUBPROBLEM_H
 
 #include "structs.h"
-//#include "adaptiveSamples.h"
-
 
 using namespace std;
 
-struct Subprob
-{
+class Subproblem {
+private:
 	IloModel suboptmodel;
 	IloRangeArray suboptcon;
 	IloNumVarArray subopty;
@@ -18,20 +16,26 @@ struct Subprob
 	IloRangeArray subfeascon;
 	IloNumVarArray subfeasy;
 	IloCplex subfeascplex;
-};
-
-class Subproblem {
 
 public:
+
+	//Constructor
+	Subproblem(IloEnv& env, const TSLP& prob);
+
+	//Default Constructor
 	Subproblem();
 
+	//Deconstructor
 	~Subproblem();
 
-	double subprob(Subprob& subp, const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag);
+	double solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag);
 
-	void construct_second_opt(class IloEnv&, const TSLP&, Subprob&);
+	void construct_second_opt(class IloEnv&, const TSLP&);
 
-	void construct_second_feas(class IloEnv&, const TSLP&, Subprob&);
+	void construct_second_feas(class IloEnv&, const TSLP&);
+
+	//Allows the Partition class to have access to the private variables
+	friend class Partition;
 
 };
 
