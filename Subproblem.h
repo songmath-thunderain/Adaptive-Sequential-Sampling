@@ -4,7 +4,6 @@
 
 #include "structs.h"
 
-
 using namespace std;
 
 class Subproblem {
@@ -19,8 +18,14 @@ private:
 	IloCplex subfeascplex;
 
 public:
+
+	//Constructor
 	Subproblem(IloEnv& env, const TSLP& prob);
 
+	//Default Constructor
+	Subproblem();
+
+	//Deconstructor
 	~Subproblem();
 
 	double solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag);
@@ -28,6 +33,9 @@ public:
 	void construct_second_opt(class IloEnv&, const TSLP&);
 
 	void construct_second_feas(class IloEnv&, const TSLP&);
+
+	//Allows the Partition class to have access to the private variables
+	friend class Partition;
 
 };
 
