@@ -40,19 +40,28 @@
   }
 
   /*
+    Solves the master problem by calling the solve function
+    of the IloCplex variable.
+  */
+  void solve() {
+    mastercplex.solve();
+  }
+
+  /*
     Set initial constraints for optimization problem.
   */
-  void first_stage_constraints() {
+  void define_lp_model() {
     for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
   	{
       mastermodel.add(find_constraint(i));
   	}
+    add_objective();
   }
 
   /*
     Set initial constraint in quadratic master problem.
   */
-  void define_first_level_constraint() {
+  void define_qp_model() {
     IloExpr lsum(lenv);
     for (int j = 0; j < prob.nbFirstVars; ++j)
   		lsum += lx[j] * prob.objcoef[j];

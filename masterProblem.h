@@ -41,8 +41,9 @@ class MasterProblem {
   public:
     MasterProblem();
     ~MasterProblem();
-    void first_stage_constraints();
-    void define_first_level_constraint();
+    void solve();
+    void define_lp_model();
+    void define_qp_model();
 };
 
 #endif
