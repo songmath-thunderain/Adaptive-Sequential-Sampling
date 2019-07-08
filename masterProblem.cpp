@@ -43,8 +43,8 @@
     Solves the master problem by calling the solve function
     of the IloCplex variable.
   */
-  void solve() {
-    mastercplex.solve();
+  IloCplex& getCplex() {
+    return mastercplex;
   }
 
   /*

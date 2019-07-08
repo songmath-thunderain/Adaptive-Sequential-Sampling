@@ -41,7 +41,7 @@ class MasterProblem {
   public:
     MasterProblem();
     ~MasterProblem();
-    void solve();
+    void getCplex();
     void define_lp_model();
     void define_qp_model();
 };
