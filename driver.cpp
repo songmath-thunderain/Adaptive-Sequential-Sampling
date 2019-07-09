@@ -1,3 +1,8 @@
+/*
+	Holds modified functions for the main function that will use new classes.
+*/
+
+
 bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, Subprob& subp, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option, bool initial, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int& nearOptimal, double remaintime)
 {
 	// option = 0: Just use the relative opt gap, solution mode: 1e-6; option = 1: Use the adaptive sampling type threshold: when opt gap is small relative to the sample error, option = 2: use relative opt gap, evaluation mode: 1e-4

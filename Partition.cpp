@@ -369,7 +369,7 @@ void Partition::gen_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNum
  /*
 
  */
-double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<int>& samples, const IloNumArray& stab_center, const vector<DualInfo>& dualInfoCollection, vector< vector<double> >& cutcoefs, vector<double>& cutrhs, vector<Component>& partition, const vector<VectorXf>& rhsvecs, IloNumArray& xvals, IloTimer& clock, STAT& stat) {
+double Partition::solve(IloEnv& env, const TSLP& prob, const vector<int>& samples, const IloNumArray& stab_center, const vector<DualInfo>& dualInfoCollection, vector< vector<double> >& cutcoefs, vector<double>& cutrhs, vector<Component>& partition, const vector<VectorXf>& rhsvecs, IloNumArray& xvals, IloTimer& clock, STAT& stat) {
   // first stage constraints
   for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
   {
