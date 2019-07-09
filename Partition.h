@@ -15,7 +15,7 @@ private:
 	vector<Component> partition;
 
 	//masterProblem needs to have an default constructor
-	masterProblem masterProb;
+	MasterProblem masterProb;
 
 	Subproblem subProb;
 
