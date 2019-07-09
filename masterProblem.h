@@ -47,6 +47,9 @@ class MasterProblem {
     void define_qp_model();
     void setup_bundle_QP(const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons);
     double solve_mean_value_model(const TSLP& prob, IloEnv& meanenv, IloNumArray& meanxvals, const vector<int>& samples);
+
+    // Allow partition to access private data.
+    friend class Partition;
 };
 
 #endif
