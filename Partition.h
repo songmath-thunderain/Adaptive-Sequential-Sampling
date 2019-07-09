@@ -4,28 +4,47 @@
 
 #include "adaptiveSamples.h"
 #include "Subproblem.h"
-#include "CoarseOracle_Fun.h"
-#include "SolveScen_Fun.h"
 
 using namespace std;
-// using Eigen::VectorXf;
+using Eigen::VectorXf;
 
 
 class Partition {
 
 private:
 	vector<Component> partition;
+
+	//masterProblem needs to have an default constructor
 	masterProblem masterProb;
+
 	Subproblem subProb;
 
-// Added helper Functions
-bool calculate_refinement(vector<IloNumArray>& extreme_points, vector<IloNumArray>& extreme_rays, vector<int>& extreme_points_ind, vector<int>& extreme_rays_ind, double& feasboundscen, VectorXf& cutcoefscen, vector<double>& scenObjs, int option, vector<DualInfo>& dualInfoCollection, const IloNumArray& xvals, const vector<VectorXf>& rhsvecs, double& sum_of_infeas, /*Subproblem*/);
-void add_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNumArray& xvals, IloModel& model, const IloNumVarArray& x, STAT& stat);
+	//Coarse Oracle's Helper Functions
+	void setAggregatedBounds(const TSLP& prob, IloNumArray& secvarlb, IloNumArray& secvarub, IloNumArray& secconstrbd);
 
+	bool addToCollection(const VectorXf& dualvec, vector<DualInfo>& dualInfoCollection);
+
+	void add_feas_cuts(IloEnv& env, TSLP& prob, IloModel& model, const IloNumVarArray& x, const IloNumArray& xvals, double subobjval, const VectorXf& dualvec, int i);
+
+	double subprob_partition(IloNumArray& secvarlb, IloNumArray& secvarub, const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag);
+
+	//Solve Scen Subprobs' Helper Functions
+	void simple_refine(const Component& component, const TSLP& prob, const vector<IloNumArray>& extreme_points, const vector<int>& extreme_points_ind, const vector<IloNumArray>& extreme_rays, const vector<int>& extreme_rays_ind, vector<Component>& new_partition, vector< vector<int> >& extreme_ray_map);
+
+	bool compare_arrays(const TSLP& prob, const IloNumArray& array1, const IloNumArray& array2);
+
+	void gen_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNumArray& xvals, const vector<int>& extreme_ray_map, const vector<IloNumArray>& extreme_rays, const vector<int>& extreme_rays_ind, const double sum_of_infeas, IloModel& model, const IloNumVarArray& x);
+
+	// Refinement helper Functions
+	bool calculate_refinement(vector<IloNumArray>& extreme_points, vector<IloNumArray>& extreme_rays, vector<int>& extreme_points_ind, vector<int>& extreme_rays_ind, double& feasboundscen, VectorXf& cutcoefscen, vector<double>& scenObjs, int option, vector<DualInfo>& dualInfoCollection, const IloNumArray& xvals, const vector<VectorXf>& rhsvecs, double& sum_of_infeas, /*Subproblem*/);
+
+	void add_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNumArray& xvals, IloModel& model, const IloNumVarArray& x, STAT& stat);
 
 public:
-	Partition(masterProblem m, Subprooblem s);
+	//Constructor
+	Partition();
 
+	//Deconstructor
 	~Partition();
 
 	double solve_warmstart(IloEnv& env, const TSLP& prob, const vector<int>& samples, const IloNumArray& stab_center, const vector<DualInfo>& dualInfoCollection, vector< vector<double> >& cutcoefs, vector<double>& cutrhs, vector<Component>& partition, const vector<VectorXf>& rhsvecs, IloNumArray& xvals, IloTimer& clock, STAT& stat);

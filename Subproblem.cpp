@@ -27,6 +27,11 @@ Subproblem::Subproblem(class IloEnv& env, const TSLP& prob)
 	subfeascplex.setOut(env.getNullStream());
 }
 
+//Default Constructor
+Subproblem::Subproblem() {
+
+}
+
 //Deconstructor
 Subproblem::~Subproblem()
 {
