@@ -29,14 +29,15 @@ class MasterProblem {
       IloCplex levelcplex;
 
     // ***
-    IloModel mastermodel;
+    IloModel model;
   	IloNumVarArray x;
   	IloNumVar theta;
-    IloCplex mastercplex;
+    IloCplex cplex;
 
     // Helper Functions
     IloRange find_constraint(int i);
     void add_objective();
+
 
   public:
     MasterProblem();
@@ -44,6 +45,8 @@ class MasterProblem {
     void getCplex();
     void define_lp_model();
     void define_qp_model();
+    void setup_bundle_QP(const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons);
+    double solve_mean_value_model(const TSLP& prob, IloEnv& meanenv, IloNumArray& meanxvals, const vector<int>& samples);
 };
 
 #endif
