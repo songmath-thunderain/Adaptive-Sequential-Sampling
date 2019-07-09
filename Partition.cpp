@@ -18,6 +18,13 @@ Partition::~Partition() {
   subProb.~Subproblem();
 }
 
+/*
+
+*/
+vector<Component>& getPartition() {
+  return partition;
+}
+
 //Took Out const vector<Component>& partition,
 void Partition::setAggregatedBounds(const TSLP& prob, IloNumArray& secvarlb, IloNumArray& secvarub, IloNumArray& secconstrbd)
 {
