@@ -45,36 +45,29 @@ Subproblem::~Subproblem()
 	subfeasy.end();
 }
 
-double Subproblem::solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag)
+double Subproblem::solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag, vector<double> bd)
 {
 	// First try solving the optimization model
 	// Set constraint bounds
 	for (int i = 0; i < prob.nbSecRows; ++i)
 	{
-		double bd = prob.secondconstrbd[k * prob.nbSecRows + i];
-		for (int j = 0; j < prob.nbPerRow[i]; ++j)
-		{
-			int ind = prob.CoefInd[i][j];
-			if (ind < prob.nbFirstVars)
-				bd -= prob.CoefMat[i][j] * xvals[ind];
-		}
 		if (prob.secondconstrsense[i] == -1)
-			 suboptcon[i].setLB(bd);
+			 suboptcon[i].setLB( bd[i]);
 		if (prob.secondconstrsense[i] == 0)
 		{
-			if ( suboptcon[i].getUB() < bd)
+			if ( suboptcon[i].getUB() <  bd[i])
 			{
-				 suboptcon[i].setUB(bd);
-				 suboptcon[i].setLB(bd);
+				 suboptcon[i].setUB( bd[i]);
+				 suboptcon[i].setLB( bd[i]);
 			}
 			else
 			{
-				 suboptcon[i].setLB(bd);
-				 suboptcon[i].setUB(bd);
+				 suboptcon[i].setLB( bd[i]);
+				 suboptcon[i].setUB( bd[i]);
 			}
 		}
 		if (prob.secondconstrsense[i] == 1)
-			 suboptcon[i].setUB(bd);
+			 suboptcon[i].setUB( bd[i]);
 	}
 	// Set variable bounds
 	for (int j = 0; j < prob.nbSecVars; ++j)
@@ -102,30 +95,23 @@ double Subproblem::solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray
 		// infeasible! Get extreme rays
 		for (int i = 0; i < prob.nbSecRows; ++i)
 		{
-			double bd = prob.secondconstrbd[k * prob.nbSecRows + i];
-			for (int j = 0; j < prob.nbPerRow[i]; ++j)
-			{
-				int ind = prob.CoefInd[i][j];
-				if (ind < prob.nbFirstVars)
-					bd -= prob.CoefMat[i][j] * xvals[ind];
-			}
 			if (prob.secondconstrsense[i] == -1)
-				 subfeascon[i].setLB(bd);
+				 subfeascon[i].setLB( bd[i]);
 			if (prob.secondconstrsense[i] == 0)
 			{
-				if ( subfeascon[i].getUB() < bd)
+				if ( subfeascon[i].getUB() <  bd[i])
 				{
-					 subfeascon[i].setUB(bd);
-					 subfeascon[i].setLB(bd);
+					 subfeascon[i].setUB( bd[i]);
+					 subfeascon[i].setLB( bd[i]);
 				}
 				else
 				{
-					 subfeascon[i].setLB(bd);
-					 subfeascon[i].setUB(bd);
+					 subfeascon[i].setLB( bd[i]);
+					 subfeascon[i].setUB( bd[i]);
 				}
 			}
 			if (prob.secondconstrsense[i] == 1)
-				 subfeascon[i].setUB(bd);
+				 subfeascon[i].setUB( bd[i]);
 		}
 		for (int j = 0; j < prob.nbSecVars; ++j)
 		{
@@ -267,3 +253,4 @@ void Subproblem::construct_second_feas(class IloEnv& env, const TSLP& prob)
 	 subfeasmodel.add(IloMinimize(env, subfeasobj));
 	subfeasobj.end();
 }
+

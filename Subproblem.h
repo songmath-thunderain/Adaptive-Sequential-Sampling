@@ -28,7 +28,7 @@ public:
 	//Deconstructor
 	~Subproblem();
 
-	double solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag);
+	double solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray& duals, int k, bool& feasflag, vector<double> bd);
 
 	void construct_second_opt(class IloEnv&, const TSLP&);
 
