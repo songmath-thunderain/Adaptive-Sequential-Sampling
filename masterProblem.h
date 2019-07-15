@@ -5,44 +5,45 @@
 #define MASTERPROBLEM_H
 
 #include "structs.h"
-//#inclue "adaptiveSamples.h"
+#include "adaptiveSamples.h"
 using Eigen::VectorXf;
 
 class MasterProblem {
   private:
-    IloEnv& env;
-    TSLP& prob;
-    STAT& stat;
-    IloTimer& clock;
-    const vector<int>& samples;
-    VectorXf& xiterateXf;
-    // *** only in solve_level
-      // Setup
-      IloEnv meanenv;
-      IloNumArray meanxvals;
-      double meanobj;
-      // quadratic
-      IloEnv lenv;
-      IloModel levelmodel;
-      IloNumVarArray lx;
-      IloNumVar ltheta;
-      IloCplex levelcplex;
+    // JUST INPUTS?
+	IloEnv env;
+    TSLP prob;
+    STAT stat;
+    //IloTimer clock;
+    vector<int> samples;
+    VectorXf xiterateXf;
 
-    // ***
-    IloModel model;
-  	IloNumVarArray x;
-  	IloNumVar theta;
-    IloCplex cplex;
+	IloModel model;
+	IloNumVarArray x;
+	IloNumVar theta;
+	IloCplex cplex;
+    // Mean data used in solve_level
+    IloEnv meanenv; // JUST INPUT?
+    IloNumArray meanxvals;
+    double meanobj;
+    // Quadratic MP
+    IloEnv lenv; // JUST INPUT?
+    IloModel levelmodel;
+    IloNumVarArray lx;
+    IloNumVar ltheta;
+    IloCplex levelcplex;
 
     // Helper Functions
     IloRange find_constraint(int i);
     void add_objective();
 
-
   public:
-    MasterProblem();
+	MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf);
+	MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv meanenv);
+	MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv meanenv, IloEnv lenv);
     ~MasterProblem();
-    void getCplex();
+	void solve();
+    IloCplex& getCplex();
     void define_lp_model();
     void define_qp_model();
     void setup_bundle_QP(const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons);
