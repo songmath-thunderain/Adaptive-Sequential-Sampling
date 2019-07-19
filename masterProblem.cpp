@@ -6,6 +6,13 @@
 #include "MasterProblem.h"
 
 /*
+	Default constructor
+*/
+MasterProblem::MasterProblem() {
+
+}
+
+/*
 	Constructor for level master problem
 */
 MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf) {

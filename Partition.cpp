@@ -5,7 +5,7 @@ double TIME_LIMIT = 7200;
 /*
   Constructor
 */
-Partition::Partition(vector<Component>& p, MasterProblem m, Subproblem s) {
+Partition::Partition(vector<Component>& p, MasterProblem& m, Subproblem& s) {
 	partition = p;
 	masterProb = m;
 	subProb = s;
@@ -18,13 +18,6 @@ Partition::~Partition() {
 	// Need to destroy partition?
 	masterProb.~MasterProblem();
 	subProb.~Subproblem();
-}
-
-/*
-
-*/
-vector<Component>& getPartition() {
-	return &partition;
 }
 
 //Took Out const vector<Component>& partition,
@@ -347,13 +340,13 @@ double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<in
 	{
 		if (fabs(initialCutCoef[i]) > 1e-7)
 		{
-			initialCut += x[i] * initialCutCoef[i];
+			initialCut += masterProb.x[i] * initialCutCoef[i];
 			tempcutcoef[i] = initialCutCoef[i];
 		}
 	}
 	cutcoefs.push_back(tempcutcoef);
 	cutrhs.push_back(initialCutRhs);
-	initialCut += theta;
+	initialCut += masterProb.theta;
 	masterProb.model.add(initialCut >= initialCutRhs);
 	initialCut.end();
 	// Loop
@@ -364,11 +357,11 @@ double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<in
 	{
 		loopflag = 0;
 		masterProb.getCplex().solve();
-		returnval = cplex.getObjValue();
-		masterProb.getCplex().getValues(xvals, x);
+		returnval = masterProb.cplex.getObjValue();
+		masterProb.getCplex().getValues(xvals, masterProb.x);
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 			xiterate[j] = xvals[j];
-		double thetaval = cplex.getValue(theta);
+		double thetaval = masterProb.cplex.getValue(masterProb.theta);
 		VectorXf CutCoef(prob.nbFirstVars);
 		CutCoef.setZero();
 		double CutRhs = 0;
@@ -409,7 +402,7 @@ double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<in
 		{
 			if (fabs(CutCoef[i]) > 1e-7)
 			{
-				Cut += x[i] * CutCoef[i];
+				Cut += masterProb.x[i] * CutCoef[i];
 				cutlhsval += xvals[i] * CutCoef[i];
 			}
 		}
@@ -432,7 +425,7 @@ double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<in
 		Cut.end();
 	}
 	cout << "# of cuts added in the warmstart = " << nCuts << endl;
-	masterProb.getCplex().end();
+	masterProb.cplex.end();
 	masterProb.model.end();
 	masterProb.x.end();
 	masterProb.theta.end();
@@ -615,90 +608,11 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 	return totalobjval;
 }
 
-
-/*
-  Helper function for refinement.
-  Uses earlier calculations to add cuts to master problem.
-*/
-void Partition::add_feasibility_cuts(vector< vector<int> > extreme_ray_map, vector<IloNumArray> extreme_points, vector<IloNumArray> extreme_rays, vector<int> extreme_points_ind, vector<int> extreme_rays_ind, double sum_of_infeas, IloEnv& env, const TSLP& prob, const IloNumArray& xvals, const IloNumVarArray& x, STAT& stat) {
-	for (int j = 0; j < extreme_ray_map.size(); ++j)
-	{
-		// add feasibility cuts group by group
-		gen_feasibility_cuts(env, prob, xvals, extreme_ray_map[j], extreme_rays, extreme_rays_ind, sum_of_infeas, masterProb.model, x);
-		stat.num_feas_cuts++;
-	}
-	for (int j = 0; j < extreme_points.size(); ++j)
-		extreme_points[j].end();
-	for (int j = 0; j < extreme_rays.size(); ++j)
-		extreme_rays[j].end();
-}
-
-/*
-  Refines problem and creates a new partition.
-*/
-void Partition::perform_refinement(IloTimer& clock, const TSLP& prob, vector<IloNumArray> extreme_points, vector<int> extreme_points_ind, vector<IloNumArray> extreme_rays, vector<int> extreme_rays_ind, vector<Component>& new_partition, vector< vector<int> > extreme_ray_map, STAT& stat) {
-	double refinestart = clock.getTime();
-	simple_refine(partition[i], prob, extreme_points, extreme_points_ind, extreme_rays, extreme_rays_ind, new_partition, extreme_ray_map);
-	stat.refinetime += clock.getTime() - refinestart;
-}
-
-/*
-  Helper function for refinement functions.
-  Finds the refinement for one Component of the partition.
-  returns: the flag to be returned from the refinement functions.
-*/
-bool Partition::calculate_refinement(Component& comp, const TSLP& prob, Subprob& subp, vector<IloNumArray>& extreme_points, vector<IloNumArray>& extreme_rays, vector<int>& extreme_points_ind, vector<int>& extreme_rays_ind, double& feasboundscen, VectorXf& cutcoefscen, vector<double>& scenObjs, int option, vector<DualInfo>& dualInfoCollection, const IloNumArray& xvals, const vector<VectorXf>& rhsvecs, double& sum_of_infeas, /*Subproblem*/) {
-	bool returnflag = 1;
-	for (int k = 0; k < comp.indices.size(); ++k)
-	{
-		IloNumArray duals(env2);
-		bool feasflag;
-		double subobjval = subProb(subp, prob, xvals, duals, comp.indices[k], feasflag);
-		if (feasflag == 1)
-		{
-			// optimal, so return extreme point solution
-			extreme_points.push_back(duals);
-			extreme_points_ind.push_back(comp.indices[k]);
-			feasboundscen += subobjval;
-			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
-			for (int j = 0; j < prob.nbSecRows + prob.nbSecVars; ++j)
-				dualvec(j) = duals[j];
-			VectorXf opt_cut_coef = prob.CoefMatXf.transpose() * dualvec.segment(0, prob.nbSecRows);
-			cutcoefscen += opt_cut_coef;
-			scenObjs.push_back(subobjval);
-			if (option == 1)
-			{
-				if (addToCollection(dualvec, dualInfoCollection) == true)
-				{
-					DualInfo dual;
-					dual.dualvec = dualvec;
-					dual.coefvec = opt_cut_coef;
-					dual.rhs = subobjval;
-					for (int j = 0; j < prob.nbFirstVars; ++j)
-						dual.rhs += opt_cut_coef[j] * xvals[j];
-					dual.rhs -= rhsvecs[partition[i].indices[k]].dot(dualvec.segment(0, prob.nbSecRows));
-					dualInfoCollection.push_back(dual);
-				}
-			}
-		}
-		else
-		{
-			returnflag = 0;
-			//cout << "infeasible scenario subproblem!" << endl;
-			extreme_rays.push_back(duals);
-			extreme_rays_ind.push_back(comp.indices[k]);
-			*sum_of_infeas += subobjval;
-		}
-	}
-
-	return returnflag;
-}
-
 /*
   Use scenarios in current partition to refine the master problem? and
   then form a better partition.
 */
-bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, Subprob& subp, const vector<Component>& partition, const IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, const IloNumVarArray& x, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<double>& scenObjs, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option)
+bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<double>& scenObjs, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option)
 {
 	bool returnflag = 1;
 	for (int i = 0; i < partition.size(); ++i)
@@ -709,17 +623,69 @@ bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, Subprob
 		vector< vector<int> > extreme_ray_map; // record groups of extreme rays that are stored in the list extreme_rays, extreme_rays_ind
 		// solve subproblems for each partition
 		if (partition[i].indices.size() > 1)
-		{
-			returnflag = calculate_refinement(partition[i], prob, subp, extreme_points, extreme_rays, extreme_points_ind, extreme_rays_ind, feasboundscen, cutcoefscen, scenObjs, option, dualInfoCollection, xvals, rhsvecs, &sum_of_infeas, /*Subproblem*/);
-			void perform_refinement(clock, prob, extreme_points, extreme_points_ind, extreme_rays, extreme_rays_ind, new_partition, extreme_ray_map, stat);
+		{			
+			bool returnflag = 1;
+			for (int k = 0; k < partition[i].indices.size(); ++k)
+			{
+				IloNumArray duals(env2);
+				bool feasflag;
+				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, /*bd*/);
+				if (feasflag == 1)
+				{
+					// optimal, so return extreme point solution
+					extreme_points.push_back(duals);
+					extreme_points_ind.push_back(partition[i].indices[k]);
+					feasboundscen += subobjval;
+					VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
+					for (int j = 0; j < prob.nbSecRows + prob.nbSecVars; ++j)
+						dualvec(j) = duals[j];
+					VectorXf opt_cut_coef = prob.CoefMatXf.transpose() * dualvec.segment(0, prob.nbSecRows);
+					cutcoefscen += opt_cut_coef;
+					scenObjs.push_back(subobjval);
+					if (option == 1)
+					{
+						if (addToCollection(dualvec, dualInfoCollection) == true)
+						{
+							DualInfo dual;
+							dual.dualvec = dualvec;
+							dual.coefvec = opt_cut_coef;
+							dual.rhs = subobjval;
+							for (int j = 0; j < prob.nbFirstVars; ++j)
+								dual.rhs += opt_cut_coef[j] * xvals[j];
+							dual.rhs -= rhsvecs[partition[i].indices[k]].dot(dualvec.segment(0, prob.nbSecRows));
+							dualInfoCollection.push_back(dual);
+						}
+					}
+				}
+				else
+				{
+					returnflag = 0;
+					//cout << "infeasible scenario subproblem!" << endl;
+					extreme_rays.push_back(duals);
+					extreme_rays_ind.push_back(partition[i].indices[k]);
+					sum_of_infeas += subobjval;
+				}
+			}			
+			double refinestart = clock.getTime();
+			simple_refine(partition[i], prob, extreme_points, extreme_points_ind, extreme_rays, extreme_rays_ind, new_partition, extreme_ray_map);
+			stat.refinetime += clock.getTime() - refinestart;
 		}
 		else
 		{
 			// Don't need refine
 			new_partition.push_back(partition[i]);
 		}
-		// Now add feasibility cuts
-		add_feasibility_cuts(extreme_ray_map, extreme_points, extreme_rays, extreme_points_ind, extreme_rays_ind, sum_of_infeas, env, prob, xvals, x, stat);
+		// Now add feasibility cuts	
+		for (int j = 0; j < extreme_ray_map.size(); ++j)
+		{
+			// add feasibility cuts group by group
+			gen_feasibility_cuts(env, prob, xvals, extreme_ray_map[j], extreme_rays, extreme_rays_ind, sum_of_infeas, masterProb.model, masterProb.x);
+			stat.num_feas_cuts++;
+		}
+		for (int j = 0; j < extreme_points.size(); ++j)
+			extreme_points[j].end();
+		for (int j = 0; j < extreme_rays.size(); ++j)
+			extreme_rays[j].end();
 	}
 	return returnflag;
 }
@@ -729,8 +695,7 @@ bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, Subprob
   then form a better partition, checking the precision of the new partition
   after each scenario.
 */
-bool Partition::refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, Subprob& subp, const vector<Component>& partition, const IloNumArray& xvals, IloModel& model, const IloNumVarArray& x, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<VectorXf>& partcoef, vector<double>& partrhs, double descent_target, bool& fullupdateflag, double& coarseLB, VectorXf& aggrCoarseCut, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option)
-{
+bool Partition::refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, const IloNumArray& xvals, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<VectorXf>& partcoef, vector<double>& partrhs, double descent_target, bool& fullupdateflag, double& coarseLB, VectorXf& aggrCoarseCut, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option) {
 	// Solve scenario subproblems component by component, stop when hopeless to achieve descent target
 	bool returnflag = 1;
 	// Currently: go through all the partition component by exploring the bigger component first
@@ -756,15 +721,65 @@ bool Partition::refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, Subprob
 			vector< vector<int> > extreme_ray_map; // record groups of extreme rays that are stored in the list extreme_rays, extreme_rays_ind
 			coarseLB -= partrhs[i] * 1.0 / samples.size();
 			aggrCoarseCut -= partcoef[i] * (partition[i].indices.size());
-
-			returnflag = calculate_refinement(partition[i], prob, subp, extreme_points, extreme_rays, extreme_points_ind, extreme_rays_ind, feasboundscen, cutcoefscen, scenObjs, option, dualInfoCollection, xvals, rhsvecs, &sum_of_infeas, /*Subproblem*/);
-			void perform_refinement(clock, prob, extreme_points, extreme_points_ind, extreme_rays, extreme_rays_ind, new_partition, extreme_ray_map, stat);
+			for (int k = 0; k < partition[i].indices.size(); ++k)
+			{
+				IloNumArray duals(env2);
+				bool feasflag;
+				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, /*bd*/);
+				if (feasflag == 1)
+				{
+					// optimal, so return extreme point solution
+					extreme_points.push_back(duals);
+					extreme_points_ind.push_back(partition[i].indices[k]);
+					VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
+					for (int j = 0; j < prob.nbSecRows + prob.nbSecVars; ++j)
+						dualvec(j) = duals[j];
+					VectorXf opt_cut_coef = prob.CoefMatXf.transpose() * dualvec.segment(0, prob.nbSecRows);
+					coarseLB += subobjval * 1.0 / samples.size();
+					aggrCoarseCut += opt_cut_coef;
+					scenObjs.push_back(subobjval);
+					if (option == 1)
+					{
+						if (addToCollection(dualvec, dualInfoCollection) == true)
+						{
+							DualInfo dual;
+							dual.dualvec = dualvec;
+							dual.coefvec = opt_cut_coef;
+							dual.rhs = subobjval;
+							for (int j = 0; j < prob.nbFirstVars; ++j)
+								dual.rhs += opt_cut_coef[j] * xvals[j];
+							dual.rhs -= rhsvecs[partition[i].indices[k]].dot(dualvec.segment(0, prob.nbSecRows));
+							dualInfoCollection.push_back(dual);
+						}
+					}
+				}
+				else
+				{
+					returnflag = 0;
+					cout << "infeasible scenario subproblem!" << endl;
+					extreme_rays.push_back(duals);
+					extreme_rays_ind.push_back(partition[i].indices[k]);
+					sum_of_infeas += subobjval;
+				}
+			}
+			// Perform refinement
+			double refinestart = clock.getTime();
+			simple_refine(partition[i], prob, extreme_points, extreme_points_ind, extreme_rays, extreme_rays_ind, new_partition, extreme_ray_map);
+			stat.refinetime += clock.getTime() - refinestart;
 			// Now add feasibility cuts
-			add_feasibility_cuts(extreme_ray_map, extreme_points, extreme_rays, extreme_points_ind, extreme_rays_ind, sum_of_infeas, env, prob, xvals, masterProb.model, x, stat);
-
+			for (int j = 0; j < extreme_ray_map.size(); ++j)
+			{
+				// add feasibility cuts group by group
+				gen_feasibility_cuts(env, prob, xvals, extreme_ray_map[j], extreme_rays, extreme_rays_ind, sum_of_infeas, masterProb.model, masterProb.x);
+				stat.num_feas_cuts++;
+			}
+			for (int j = 0; j < extreme_points.size(); ++j)
+				extreme_points[j].end();
+			for (int j = 0; j < extreme_rays.size(); ++j)
+				extreme_rays[j].end();
 			if (coarseLB > descent_target)
 			{
-				// If hopeless to achieve the descent target, break out of loop
+				// If hopeless to achieve the descent target, break out of loop 
 				for (int j = ind + 1; j < partition.size(); ++j)
 					new_partition.push_back(partition[sizelist[j].ind]);
 				break;
@@ -784,4 +799,3 @@ bool Partition::refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, Subprob
 	}
 	return returnflag;
 }
-
