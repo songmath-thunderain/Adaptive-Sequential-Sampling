@@ -629,7 +629,7 @@ bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
 			{
 				IloNumArray duals(env2);
 				bool feasflag;
-				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, /*bd*/);
+				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, subProb.calculate_bd(prob, xvals, k));
 				if (feasflag == 1)
 				{
 					// optimal, so return extreme point solution
@@ -725,7 +725,7 @@ bool Partition::refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
 			{
 				IloNumArray duals(env2);
 				bool feasflag;
-				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, /*bd*/);
+				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, subProb.calculate_bd(prob, xvals, k));
 				if (feasflag == 1)
 				{
 					// optimal, so return extreme point solution

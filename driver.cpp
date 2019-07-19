@@ -63,7 +63,7 @@ void solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const
 			// solve subproblems for each scenario
 			IloNumArray duals(env);
 			bool feasflag;
-			double subobjval = subp.solve(prob, xvals, duals, samples[k], feasflag, /*bd??*/);
+			double subobjval = subp.solve(prob, xvals, duals, samples[k], feasflag, subp.calculate_bd(prob, xvals, k));
 			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
 			for (int i = 0; i < prob.nbSecRows + prob.nbSecVars; ++i)
 				dualvec(i) = duals[i];
@@ -194,7 +194,7 @@ void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vec
 			// solve subproblems for each partition
 			IloNumArray duals(env2);
 			bool feasflag;
-			double subobjval = subp.solve(prob, xiteratevals, duals, samples[k], feasflag, /*bd?*/);
+			double subobjval = subp.solve(prob, xiteratevals, duals, samples[k], feasflag, subp.calculate_bd(prob, xvals, k));
 			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
 			for (int i = 0; i < prob.nbSecRows + prob.nbSecVars; ++i)
 				dualvec(i) = duals[i];
