@@ -44,7 +44,7 @@ private:
 
 public:
 	//Constructor
-	Partition();
+	Partition(vector<Component>& partition, MasterProblem masterProb, Subproblem subProb);
 
 	//Deconstructor
 	~Partition();

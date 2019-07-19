@@ -2,8 +2,299 @@
 	Holds modified functions for the main function that will use new classes.
 */
 
+#include "adaptiveSamples.h"
+#include "MasterProblem.h"
+#include "Subproblem.h"
+#include "Partition.h"
 
-bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, Subprob& subp, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option, bool initial, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int& nearOptimal, double remaintime)
+void solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf)
+{
+	// Benders: single cut
+	double starttime = clock.getTime();
+	bool feas_flag = 1;
+
+	// Construct Master Problem
+	MasterProblem master(env, prob, stat, clock, samples, xiterateXf);
+	// Add first-stage constraints and objective
+	master.define_lp_model();
+	
+	// We initiate an LP model for the second-stage problem, and everytime (iteration/sceanrio) we just update the rhs and solve: constraint coefficients are the same across all scenarios
+	// we initiate both optimization model and feasibility model
+	Subproblem subp(env, prob);
+
+	subp.construct_second_opt(env, prob);
+	subp.construct_second_feas(env, prob);
+
+	int nbScens = samples.size();
+
+	while ((stat.feasobjval - stat.relaxobjval) * 1.0 / (fabs(stat.feasobjval) + 1e-10) > 1e-6 || feas_flag == 0)
+	{
+		feas_flag = 1;
+		stat.iter++;
+		IloNumArray xvals(env);
+		double thetaval;
+		double lasttime = clock.getTime();
+		master.getCplex().solve();
+		cout << "master status = " << master.getCplex().getStatus() << endl;
+		if (master.getCplex().getStatus() == IloAlgorithm::Unbounded)
+		{
+			IloEnv meanenv;
+			stat.relaxobjval = solve_mean_value_model(prob, meanenv, xvals, samples);
+			meanenv.end();
+		}
+		else
+		{
+			stat.relaxobjval = master.getCplex().getObjValue();
+			master.getCplex().getValues(xvals, master.getX());
+			thetaval = master.getCplex().getValue(master.getTheta());
+		}
+		for (int j = 0; j < prob.nbFirstVars; ++j)
+			xiterateXf(j) = xvals[j];
+		stat.mastertime += clock.getTime() - lasttime;
+		double feasbound = 0.0;
+		IloExpr lhsaggr(env);
+		double lhsaggrval = 0;
+		lhsaggr += master.getTheta();
+		lhsaggrval += thetaval;
+		double rhsaggr = 0;
+		lasttime = clock.getTime();
+		for (int k = 0; k < nbScens; ++k)
+		{
+			// solve subproblems for each scenario
+			IloNumArray duals(env);
+			bool feasflag;
+			double subobjval = subp.solve(prob, xvals, duals, samples[k], feasflag, /*bd??*/);
+			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
+			for (int i = 0; i < prob.nbSecRows + prob.nbSecVars; ++i)
+				dualvec(i) = duals[i];
+			duals.end();
+			if (feasflag == 1)
+			{
+				// optimal, so return extreme point solution
+				VectorXf opt_cut_coef = prob.CoefMatXf.transpose() * dualvec.segment(0, prob.nbSecRows);
+				double sum_xvals = 0;
+				for (int j = 0; j < prob.nbFirstVars; ++j)
+				{
+					if (fabs(opt_cut_coef[j]) > 1e-7)
+					{
+						lhsaggrval += xvals[j] * opt_cut_coef[j] * 1.0 / nbScens;
+						lhsaggr += master.getX()[j] * opt_cut_coef[j] * 1.0 / nbScens;
+						sum_xvals += opt_cut_coef[j] * xvals[j];
+					}
+				}
+				double rhssub = subobjval + sum_xvals;
+				rhsaggr += rhssub * 1.0 / nbScens;
+				feasbound += subobjval;
+			}
+			else
+			{
+				cout << "infeasible!" << endl;
+				feas_flag = 0;
+				// infeasible, so return extreme rays
+				VectorXf feas_cut_coef = prob.CoefMatXf.transpose() * dualvec.segment(0, prob.nbSecRows);
+				double sum_xvals = feas_cut_coef.dot(xiterateXf);
+				IloExpr lhssub(env);
+				for (int j = 0; j < prob.nbFirstVars; ++j)
+				{
+					if (fabs(feas_cut_coef[j]) > 1e-7)
+						lhssub += master.getX()[j] * feas_cut_coef[j];
+				}
+				double rhssub = sum_xvals + subobjval;
+				stat.num_feas_cuts++;
+				master.getModel().add(lhssub >= rhssub);
+				lhssub.end();
+			}
+		}
+		stat.subtime += clock.getTime() - lasttime;
+		if (feas_flag == 1)
+		{
+			feasbound = feasbound * 1.0 / nbScens;
+			for (int j = 0; j < prob.nbFirstVars; ++j)
+				feasbound += xvals[j] * prob.objcoef[j];
+			if (feasbound <= stat.feasobjval)
+				stat.feasobjval = feasbound;
+			master.getModel().add(lhsaggr >= rhsaggr);
+			stat.num_opt_cuts++;
+		}
+		else
+			cout << "Infeasible! Generating feasibility cuts!" << endl;
+		lhsaggr.end();
+		xvals.end();
+		cout << "relaxobjval = " << stat.relaxobjval << endl;
+		cout << "feasobjval = " << stat.feasobjval << endl;
+		cout << "optimality gap = " << (stat.feasobjval - stat.relaxobjval) * 1.0 / (fabs(stat.feasobjval) + 1e-10) << endl;
+		stat.solvetime = clock.getTime() - starttime;
+		cout << "stat.solvetime = " << stat.solvetime << endl;
+		if (stat.solvetime > 10800)
+			break;
+	}
+
+}
+
+
+
+void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option)
+{
+	// Level: level method starts with the mean-value solution
+	// option = 0: solving SAA for getting a candidate solution; option = 1: solving SAA for evaluating a given solution using CI
+	// first solve a mean-value problem
+	double accuracy;
+	if (option == 0)
+	{
+		// For getting a candidate solution
+		accuracy = 1e-6;
+	}
+	if (option == 1)
+	{
+		// For evaluating a given solution using CI
+		accuracy = 1e-4;
+	}
+	double starttime = clock.getTime();
+	// Create and define level and quadratic Master Problems
+	IloEnv meanenv;
+	IloEnv lenv;
+	MasterProblem master(env, prob, stat, clock, samples, xiterateXf, meanenv, lenv);
+	master.define_lp_model();
+	master.define_qp_model();
+
+	bool feas_flag = 1;
+
+	// We initiate an LP model for the second-stage problem, and everytime (iteration/sceanrio) we just update the rhs and solve: constraint coefficients are the same across all scenarios
+	// we initiate both optimization model and feasibility model
+	Subproblem subp(env, prob);
+	subp.construct_second_opt(env, prob);
+	subp.construct_second_feas(env, prob);
+
+	int nbScens = samples.size();
+
+	// This part needs to be changed into Level method iteration
+	while ((stat.feasobjval - stat.relaxobjval) * 1.0 / (fabs(stat.feasobjval) + 1e-10) > accuracy || feas_flag == 0)
+	{
+		feas_flag = 1;
+		IloEnv env2;
+		stat.iter++;
+		IloNumArray xiteratevals(env2, prob.nbFirstVars);
+		for (int j = 0; j < prob.nbFirstVars; ++j)
+		{
+			xiterateXf(j) = master.getXiterate()[j];
+			xiteratevals[j] = master.getXiterate()[j];
+		}
+		double feasbound = 0.0;
+		for (int j = 0; j < prob.nbFirstVars; ++j)
+			feasbound += master.getXiterate()[j] * prob.objcoef[j];
+
+		IloExpr lhsaggr(env);
+		lhsaggr += master.getTheta();
+		IloExpr llhsaggr(lenv);
+		llhsaggr += master.getLtheta();
+		double rhsaggr = 0;
+		double lasttime = clock.getTime();
+		for (int k = 0; k < nbScens; ++k)
+		{
+			// solve subproblems for each partition
+			IloNumArray duals(env2);
+			bool feasflag;
+			double subobjval = subp.solve(prob, xiteratevals, duals, samples[k], feasflag, /*bd?*/);
+			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
+			for (int i = 0; i < prob.nbSecRows + prob.nbSecVars; ++i)
+				dualvec(i) = duals[i];
+			duals.end();
+			if (feasflag == 1)
+			{
+				// optimal, so return extreme point solution
+				VectorXf opt_cut_coef = prob.CoefMatXf.transpose() * dualvec.segment(0, prob.nbSecRows);
+				double sum_xvals = opt_cut_coef.dot(xiterateXf);
+				double rhssub = subobjval + sum_xvals;
+				feasbound += subobjval * 1.0 / nbScens;
+				rhsaggr += rhssub * 1.0 / nbScens;
+				for (int j = 0; j < prob.nbFirstVars; ++j)
+				{
+					if (fabs(opt_cut_coef[j]) > 1e-7)
+					{
+						lhsaggr += master.getX()[j] * opt_cut_coef[j] * 1.0 / nbScens;
+						llhsaggr += master.getLx()[j] * opt_cut_coef[j] * 1.0 / nbScens;
+					}
+				}
+
+			}
+			else
+			{
+				feas_flag = 0;
+				// infeasible, so return extreme rays
+				VectorXf feas_cut_coef = prob.CoefMatXf.transpose() * dualvec.segment(0, prob.nbSecRows);
+				double sum_xvals = feas_cut_coef.dot(xiterateXf);
+				IloExpr lhssub(env);
+				IloExpr llhssub(lenv);
+				for (int j = 0; j < prob.nbFirstVars; ++j)
+				{
+					if (fabs(feas_cut_coef[j]) > 1e-7)
+					{
+						llhssub += master.getLx()[j] * feas_cut_coef[j];
+						lhssub += master.getX()[j] * feas_cut_coef[j];
+					}
+				}
+				double rhssub = sum_xvals + subobjval;
+				stat.num_feas_cuts++;
+				master.getModel().add(lhssub >= rhssub);
+				master.getLevelmodel().add(llhssub >= rhssub);
+				lhssub.end();
+				llhssub.end();
+			}
+		}
+		xiteratevals.end();
+		stat.subtime += clock.getTime() - lasttime;
+		if (feas_flag == 1)
+		{
+			//cout << "feasbound = " << feasbound << ", feasobjval = " << stat.feasobjval << endl;
+			if (feasbound <= stat.feasobjval)
+				stat.feasobjval = feasbound;
+			master.getLevelmodel().add(llhsaggr >= rhsaggr);
+			master.getModel().add(lhsaggr >= rhsaggr);
+			stat.num_opt_cuts++;
+		}
+		lhsaggr.end();
+		llhsaggr.end();
+		// Now solve the master, get a lower bound
+		lasttime = clock.getTime();
+		master.getCplex().solve();
+		stat.relaxobjval = master.getCplex().getObjValue();
+		stat.mastertime += clock.getTime() - lasttime;
+
+		// Now solve the qp level problem
+		// update the upper bound, (1-\lambda)F^{k+1}+\lambda F^*
+
+		rangeub.setUB(0.5 * stat.relaxobjval + 0.5 * stat.feasobjval);
+		IloExpr objExpr(lenv);
+		for (int j = 0; j < prob.nbFirstVars; ++j)
+		{
+			objExpr += master.getLx()[j] * master.getLx()[j];
+			objExpr -= master.getLx()[j] * 2 * master.getXiterate()[j];
+		}
+		lobj.setExpr(objExpr);
+		objExpr.end();
+
+		double startqptime = clock.getTime();
+		master.getLevelcplex().solve();
+		stat.qptime += clock.getTime() - startqptime;
+		IloNumArray lxval(lenv);
+		master.getLevelcplex().getValues(lxval, master.getLx());
+		for (int j = 0; j < prob.nbFirstVars; ++j)
+			master.getXiterate()[j] = lxval[j];
+		lxval.end();
+		env2.end();
+		//cout << "relaxobjval = " << stat.relaxobjval << endl;
+		//cout << "feasobjval = " << stat.feasobjval << endl;
+		//cout << "optimality gap = " << (stat.feasobjval-stat.relaxobjval)*1.0/(fabs(stat.feasobjval)+1e-10) << endl;
+		stat.solvetime = clock.getTime() - starttime;
+		if (stat.solvetime > 10800)
+			break;
+	}
+
+}
+
+
+
+bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, Subproblem& subp, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option, bool initial, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int& nearOptimal, double remaintime)
 {
 	// option = 0: Just use the relative opt gap, solution mode: 1e-6; option = 1: Use the adaptive sampling type threshold: when opt gap is small relative to the sample error, option = 2: use relative opt gap, evaluation mode: 1e-4
 	// initial = 0: a stability center is provided as xiterteXf from the previous iteration; initial = 1: the very first sampled problem solved

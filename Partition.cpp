@@ -5,8 +5,8 @@ double TIME_LIMIT = 7200;
 /*
   Constructor
 */
-Partition::Partition(MasterProblem m, Subproblem s) {
-	// How do we create partition?
+Partition::Partition(vector<Component>& p, MasterProblem m, Subproblem s) {
+	partition = p;
 	masterProb = m;
 	subProb = s;
 }
@@ -24,7 +24,7 @@ Partition::~Partition() {
 
 */
 vector<Component>& getPartition() {
-	return partition;
+	return &partition;
 }
 
 //Took Out const vector<Component>& partition,
