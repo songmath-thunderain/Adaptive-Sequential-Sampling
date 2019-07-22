@@ -28,6 +28,9 @@ class MasterProblem {
     // Quadratic MP
     IloEnv lenv;
     IloModel levelmodel;
+	IloExpr lsum;
+	IloRange rangeub;
+	IloObjective lobj;
     IloNumVarArray lx;
     IloNumVar ltheta;
     IloCplex levelcplex;
@@ -52,6 +55,8 @@ class MasterProblem {
 	IloNumVarArray& getLx();
 	IloModel& getLevelmodel();
 	IloCplex& getLevelcplex();
+	IloRange& getRangeub();
+	IloObjective& getLobj();
   
   // Allow partition class to access private data.
   friend class Partition;

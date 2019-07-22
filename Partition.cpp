@@ -6,6 +6,7 @@ double TIME_LIMIT = 7200;
   Constructor
 */
 Partition::Partition(vector<Component>& p, MasterProblem& m, Subproblem& s) {
+	// Need to copy element-wise?
 	partition = p;
 	masterProb = m;
 	subProb = s;

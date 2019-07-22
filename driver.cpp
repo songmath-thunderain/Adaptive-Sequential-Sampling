@@ -63,7 +63,7 @@ void solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const
 			// solve subproblems for each scenario
 			IloNumArray duals(env);
 			bool feasflag;
-			double subobjval = subp.solve(prob, xvals, duals, samples[k], feasflag, subp.calculate_bd(prob, xvals, k));
+			double subobjval = subp.solve(prob, xvals, duals, samples[k], feasflag, subp.calculate_bd(prob, xvals, samples[k]));
 			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
 			for (int i = 0; i < prob.nbSecRows + prob.nbSecVars; ++i)
 				dualvec(i) = duals[i];
@@ -194,7 +194,7 @@ void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vec
 			// solve subproblems for each partition
 			IloNumArray duals(env2);
 			bool feasflag;
-			double subobjval = subp.solve(prob, xiteratevals, duals, samples[k], feasflag, subp.calculate_bd(prob, xvals, k));
+			double subobjval = subp.solve(prob, xiteratevals, duals, samples[k], feasflag, subp.calculate_bd(prob, master.getMeanxvals(), samples[k]));
 			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
 			for (int i = 0; i < prob.nbSecRows + prob.nbSecVars; ++i)
 				dualvec(i) = duals[i];
@@ -263,14 +263,14 @@ void solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vec
 		// Now solve the qp level problem
 		// update the upper bound, (1-\lambda)F^{k+1}+\lambda F^*
 
-		rangeub.setUB(0.5 * stat.relaxobjval + 0.5 * stat.feasobjval);
+		master.getRangeub().setUB(0.5 * stat.relaxobjval + 0.5 * stat.feasobjval);
 		IloExpr objExpr(lenv);
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 		{
 			objExpr += master.getLx()[j] * master.getLx()[j];
 			objExpr -= master.getLx()[j] * 2 * master.getXiterate()[j];
 		}
-		lobj.setExpr(objExpr);
+		master.getLobj().setExpr(objExpr);
 		objExpr.end();
 
 		double startqptime = clock.getTime();

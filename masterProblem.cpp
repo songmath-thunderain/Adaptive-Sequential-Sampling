@@ -60,6 +60,15 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 
 	  this->lenv = lenv;
 	  levelmodel = IloModel(lenv);
+	  lsum = IloExpr(lenv);
+	  for (int j = 0; j < prob.nbFirstVars; ++j)
+		  lsum += lx[j] * prob.objcoef[j];
+	  lsum += ltheta;
+	  rangeub = IloRange(lenv, -IloInfinity, lsum, IloInfinity);
+	  levelmodel.add(rangeub);
+	  lsum.end();
+	  lobj = IloObjective(IloMinimize(lenv));
+	  levelmodel.add(lobj);
 	  lx = IloNumVarArray(lenv, prob.firstvarlb, prob.firstvarub);
 	  ltheta = IloNumVar(lenv, -IloInfinity, IloInfinity);
 	  levelcplex = IloCplex(levelmodel);
@@ -126,16 +135,6 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 	  levelmodel.add(range);
 	  lhs.end();
 	}
-    IloExpr lsum(lenv);
-    for (int j = 0; j < prob.nbFirstVars; ++j)
-  		lsum += lx[j] * prob.objcoef[j];
-  	lsum += ltheta;
-  	IloRange rangeub(lenv, -IloInfinity, lsum, IloInfinity);
-  	levelmodel.add(rangeub);
-  	lsum.end();
-
-    IloObjective lobj = IloMinimize(lenv);
-    levelmodel.add(lobj);
 
     levelcplex = IloCplex(levelmodel);
     levelcplex.setParam(IloCplex::TiLim, 10800);
@@ -356,4 +355,18 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   */
   IloCplex& MasterProblem::getLevelcplex() {
 	  return levelcplex;
+  }
+
+  /*
+  Getter for rangeub variable.
+  */
+  IloRange& MasterProblem::getRangeub() {
+	  return rangeub;
+  }
+
+  /*
+  Getter for lobj variable.
+  */
+  IloObjective& MasterProblem::getLobj() {
+	  return lobj;
   }
