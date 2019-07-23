@@ -2,9 +2,8 @@
 #ifndef PARTITION_H
 #define PARTITION_H
 
-#include "adaptiveSamples.h"
 #include "Subproblem.h"
-#include "MasterProblem.h"
+#include "masterProblem.h"
 
 using namespace std;
 using Eigen::VectorXf;
@@ -31,11 +30,14 @@ private:
 
 	bool compare_arrays(const TSLP& prob, const IloNumArray& array1, const IloNumArray& array2);
 
-	void gen_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNumArray& xvals, const vector<int>& extreme_ray_map, const vector<IloNumArray>& extreme_rays, const vector<int>& extreme_rays_ind, const double sum_of_infeas, IloModel& model, const IloNumVarArray& x);	
+	void gen_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNumArray& xvals, const vector<int>& extreme_ray_map, const vector<IloNumArray>& extreme_rays, const vector<int>& extreme_rays_ind, const double sum_of_infeas, IloModel& model, const IloNumVarArray& x);
 
 public:
 	//Constructor
 	Partition(vector<Component>& partition, MasterProblem& masterProb, Subproblem& subProb);
+
+	//Default Constructor
+	Partition();
 
 	//Deconstructor
 	~Partition();
@@ -45,7 +47,6 @@ public:
 	double coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, IloCplex& cplex, IloModel& model, const IloNumVarArray& x, STAT& stat, IloRangeArray& center_cons, const IloNumArray& stab_center, IloRangeArray& cuts, const vector<double>& cutrhs, VectorXf& aggrCoarseCut, double& coarseCutRhs, vector<VectorXf>& partcoef, vector<double>& partrhs, double starttime, IloTimer& timer, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option);
 
 	bool refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<double>& scenObjs, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option);
-	// formerly solve_scen_subprobs and solve_scen_subprobs_target
 	bool refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, const IloNumArray& xvals, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<VectorXf>& partcoef, vector<double>& partrhs, double descent_target, bool& fullupdateflag, double& coarseLB, VectorXf& aggrCoarseCut, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option);
 
 	//This function should be called from the main file

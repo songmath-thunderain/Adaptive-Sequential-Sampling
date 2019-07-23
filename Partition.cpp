@@ -13,6 +13,14 @@ Partition::Partition(vector<Component>& p, MasterProblem& m, Subproblem& s) {
 }
 
 /*
+ Default Constructor
+*/
+Partition::Partition() {
+
+
+}
+
+/*
   Destructor
 */
 Partition::~Partition() {
@@ -527,7 +535,7 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 			vector<double> bd;
 			for (int m = 0; m < prob.nbSecRows; ++m)
 			{
-				bd[m]= 0;
+				bd[m] = 0;
 				for (int l = 0; l < partition[i].indices.size(); ++l)
 				{
 					double subbd = prob.secondconstrbd[partition[i].indices[l] * prob.nbSecRows + m];
@@ -539,8 +547,8 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 					}
 					bd[m] += subbd;
 				}
-			} 
-			
+			}
+
 			double subobjval = subProb.solve(prob, xvals, duals, i, scenfeasflag, bd);
 			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
 			for (int j = 0; j < prob.nbSecRows + prob.nbSecVars; ++j)
@@ -624,7 +632,7 @@ bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
 		vector< vector<int> > extreme_ray_map; // record groups of extreme rays that are stored in the list extreme_rays, extreme_rays_ind
 		// solve subproblems for each partition
 		if (partition[i].indices.size() > 1)
-		{			
+		{
 			bool returnflag = 1;
 			for (int k = 0; k < partition[i].indices.size(); ++k)
 			{
@@ -666,7 +674,7 @@ bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
 					extreme_rays_ind.push_back(partition[i].indices[k]);
 					sum_of_infeas += subobjval;
 				}
-			}			
+			}
 			double refinestart = clock.getTime();
 			simple_refine(partition[i], prob, extreme_points, extreme_points_ind, extreme_rays, extreme_rays_ind, new_partition, extreme_ray_map);
 			stat.refinetime += clock.getTime() - refinestart;
