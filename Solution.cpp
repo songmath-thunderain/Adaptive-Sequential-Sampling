@@ -48,7 +48,6 @@ void Solution::preprocessing(IloEnv& env, TSLP& prob)
 	}
 }
 
-/*
 
 void Solution::solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf)
 {
@@ -219,12 +218,12 @@ void Solution:: solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock
 		IloNumArray xiteratevals(env2, prob.nbFirstVars);
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 		{
-			xiterateXf(j) = master.xiterate[j];
-			xiteratevals[j] = master.getXiterate();// [j] ;
+			master.setXiterateXF(j, master.getXiterateVal(j));
+			xiteratevals[j] = master.getXiterateVal(j);
 		}
 		double feasbound = 0.0;
 		for (int j = 0; j < prob.nbFirstVars; ++j)
-			feasbound += master.getXiterate()[j] * prob.objcoef[j];
+			feasbound += master.getXiterateVal(j) * prob.objcoef[j];
 
 		IloExpr lhsaggr(env);
 		lhsaggr += master.getTheta();
@@ -311,7 +310,7 @@ void Solution:: solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 		{
 			objExpr += master.getLx()[j] * master.getLx()[j];
-			objExpr -= master.getLx()[j] * 2 * master.getXiterate()[j];
+			objExpr -= master.getLx()[j] * 2 * master.getXiterateVal(j);
 		}
 		master.getLobj().setExpr(objExpr);
 		objExpr.end();
@@ -322,7 +321,7 @@ void Solution:: solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock
 		IloNumArray lxval(lenv);
 		master.getLevelcplex().getValues(lxval, master.getLx());
 		for (int j = 0; j < prob.nbFirstVars; ++j)
-			master.getXiterate()[j] = lxval[j];
+			master.setXiterateVal(j, lxval[j]);
 		lxval.end();
 		env2.end();
 		//cout << "relaxobjval = " << stat.relaxobjval << endl;
@@ -335,7 +334,6 @@ void Solution:: solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock
 
 }
 
-*/
 
 
 bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option, bool initial, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int& nearOptimal, double remaintime)
@@ -350,25 +348,24 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		cout << "begin solution mode...up to sample error" << endl;
 	if (option == 2)
 		cout << "begin evaluation mode..." << endl;
-	double eval_threshold = 1e-4;
-	double starttime = clock.getTime();
 	IloEnv env2;
 	IloNumArray xvals(env2);
+	double eval_threshold = 1e-4;
+	double starttime = clock.getTime();
 	double fmean;
-	vector<Component> partition;
 	bool feas_flag = 0;
-	IloCplex cplex;
-	IloModel model;
-	IloNumVarArray x(env, prob.firstvarlb, prob.firstvarub);
-	IloObjective QPobj;
 	IloNumArray stab_center(env, prob.nbFirstVars);
 	vector< vector<double> > cutcoefs; // We may do some cut screening later
 	vector<double> cutrhs;
 	IloRangeArray cuts(env);
-	IloEnv meanenv;
 	double warmtemp = clock.getTime();
 
-	Partition part_call;
+	// Create Partition object
+	IloObjective QPobj;
+	IloEnv meanenv;
+	MasterProblem masterP(env, prob, stat, clock, samples, xiterateXf);
+	Subproblem subP(env, prob);
+	Partition part_call(masterP, subP);
 
 	if (initial == 0)
 	{
@@ -376,13 +373,14 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 			stab_center[j] = xiterateXf(j);
 		// We will also do some warm starts here using recorded dual information from dualCollection
-		fmean = part_call.solve_warmstart(meanenv, prob, samples, stab_center, dualInfoCollection, cutcoefs, cutrhs, partition, rhsvecs, xvals, clock, stat);
+		fmean = part_call.solve_warmstart(meanenv, prob, samples, stab_center, dualInfoCollection, cutcoefs, cutrhs, rhsvecs, xvals, clock, stat);
+
 		// Add cuts
 		for (int l = 0; l < cutcoefs.size(); ++l)
 		{
 			IloExpr lhs(env);
 			for (int j = 0; j < prob.nbFirstVars; ++j)
-				lhs += x[j] * (prob.objcoef[j] - cutcoefs[l][j] * 1.0 / samples.size());
+				lhs += part_call.masterProb.getX()[j] * (prob.objcoef[j] - cutcoefs[l][j] * 1.0 / samples.size());
 			// Just tempararily set an UB, will be updated in the inner loop any way
 			IloRange range(env, -IloInfinity, lhs, 0);
 			cuts.add(range);
@@ -392,7 +390,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		Component all;
 		for (int i = 0; i < samples.size(); ++i)
 			all.indices.push_back(samples[i]);
-		partition.push_back(all);
+		part_call.partition.push_back(all);
 	}
 	else
 	{
@@ -405,12 +403,13 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		Component all;
 		for (int i = 0; i < samples.size(); ++i)
 			all.indices.push_back(samples[i]);
-		partition.push_back(all);
+		part_call.partition.push_back(all);
 	}
 	stat.warmstarttime = clock.getTime() - warmtemp;
 	meanenv.end();
 	IloRangeArray center_cons(env);
-	setup_bundle_QP(env, prob, cplex, model, x, stab_center, QPobj, cuts, center_cons);
+	setup_bundle_QP(env, prob, part_call.masterProb.getCplex(), part_call.masterProb.getModel(), part_call.masterProb.getX(), stab_center, QPobj, cuts, center_cons);
+	//***** part_call.masterProb.setup_bundle_QP(stab_center, QPobj, cuts, center_cons);
 	bool firstloop = 1;
 	double descent_target;
 	double opt_gap;
@@ -421,13 +420,13 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		feas_flag = 1;
 		stat.iter++;
 		//cout << "stat.iter = " << stat.iter << endl;
-		stat.partitionsize += partition.size();
+		stat.partitionsize += part_call.partition.size();
 		double feasboundscen = 0.0;
 		VectorXf cutcoefscen(prob.nbFirstVars);
 		cutcoefscen.setZero();
 		VectorXf aggrCoarseCut(prob.nbFirstVars);
-		vector<VectorXf> partcoef(partition.size());
-		vector<double> partrhs(partition.size());
+		vector<VectorXf> partcoef(part_call.partition.size());
+		vector<double> partrhs(part_call.partition.size());
 		double coarseLB, coarseCutRhs;
 		vector<double> scenObjs; // record scenario objectives
 		if (firstloop == 1)
@@ -435,7 +434,8 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		else
 		{
 			double lasttime = clock.getTime();
-			coarseLB = part_call.coarse_oracle(env, prob, xvals, feasboundscen, cutcoefscen, cplex, model, x, stat, center_cons, stab_center, cuts, cutrhs, aggrCoarseCut, coarseCutRhs, partcoef, partrhs, starttime, clock, scenObjs, samples, dualInfoCollection, rhsvecs, option);
+			coarseLB = part_call.coarse_oracle(env, prob, xvals, feasboundscen, cutcoefscen, stat, center_cons, stab_center, cuts, cutrhs, aggrCoarseCut, coarseCutRhs, partcoef, partrhs, starttime, clock, scenObjs, samples, dualInfoCollection, rhsvecs, option);
+			
 			stat.solvetime = clock.getTime() - starttime;
 			if (stat.solvetime > remaintime)
 			{
@@ -470,18 +470,18 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 				{
 					if (fabs(aggrCoarseCut[j]) > 1e-7)
 					{
-						lhs += x[j] * (prob.objcoef[j] - aggrCoarseCut[j] * 1.0 / samples.size());
+						lhs += part_call.masterProb.getX()[j] * (prob.objcoef[j] - aggrCoarseCut[j] * 1.0 / samples.size());
 						tempcut[j] = aggrCoarseCut[j];
 					}
 					else
 					{
-						lhs += x[j] * prob.objcoef[j];
+						lhs += part_call.masterProb.getX()[j] * prob.objcoef[j];
 						tempcut[j] = 0;
 					}
 				}
 				// Just tempararily set an UB, will be updated in the inner loop any way
 				IloRange range(env, -IloInfinity, lhs, -coarseCutRhs);
-				model.add(range);
+				part_call.masterProb.getModel().add(range);
 				cuts.add(range);
 				cutcoefs.push_back(tempcut);
 				cutrhs.push_back(coarseCutRhs);
@@ -564,7 +564,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 							else
 							{
 								// remove the cut
-								model.remove(cuts[j]);
+								part_call.masterProb.getModel().remove(cuts[j]);
 								cuts[j].end();
 							}
 						}
@@ -600,7 +600,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		//cout << "After updates, loopflag = " << loopflag << ", feas_flag = " << feas_flag << ", partition.size = " << partition.size() << ", new_partition.size = " << new_partition.size() << endl;
 		if (loopflag == 1 && firstloop == 0)
 		{
-			partition = new_partition;
+			part_call.partition = new_partition;
 			// Need to add an aggregated cut, if feasible: maybe a fine oracle, or a mixed fine/coarse oracle
 			if (feas_flag == 1)
 			{
@@ -613,7 +613,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 					{
 						if (fabs(cutcoefscen[j]) > 1e-7)
 						{
-							lhs += x[j] * (-cutcoefscen[j] * 1.0 / samples.size() + prob.objcoef[j]);
+							lhs += part_call.masterProb.getX()[j] * (-cutcoefscen[j] * 1.0 / samples.size() + prob.objcoef[j]);
 							lhsval += xvals[j] * cutcoefscen[j];
 							tempcut[j] = cutcoefscen[j];
 						}
@@ -621,13 +621,13 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 						{
 							tempcut[j] = 0;
 							if (fabs(prob.objcoef[j]) > 1e-7)
-								lhs += x[j] * prob.objcoef[j];
+								lhs += part_call.masterProb.getX()[j] * prob.objcoef[j];
 						}
 					}
 					double fineCutRhs = (feasboundscen + lhsval) * 1.0 / samples.size();
 					// Just tempararily set an UB, will be updated in the inner loop any way
 					IloRange range(env, -IloInfinity, lhs, -fineCutRhs);
-					model.add(range);
+					part_call.masterProb.getModel().add(range);
 					cuts.add(range);
 					cutcoefs.push_back(tempcut);
 					cutrhs.push_back(fineCutRhs);
@@ -646,21 +646,21 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 					{
 						if (fabs(aggrCoarseCut[j]) > 1e-7)
 						{
-							lhs += x[j] * (-aggrCoarseCut[j] * 1.0 / samples.size() + prob.objcoef[j]);
+							lhs += part_call.masterProb.getX()[j] * (-aggrCoarseCut[j] * 1.0 / samples.size() + prob.objcoef[j]);
 							tempval += xvals[j] * aggrCoarseCut[j];
 							tempcut[j] = aggrCoarseCut[j];
 						}
 						else
 						{
 							tempcut[j] = 0;
-							lhs += x[j] * prob.objcoef[j];
+							lhs += part_call.masterProb.getX()[j] * prob.objcoef[j];
 						}
 					}
 					cutcoefs.push_back(tempcut);
 					coarseCutRhs += tempval * 1.0 / samples.size();
 					// Just tempararily set an UB, will be updated in the inner loop any way
 					IloRange range(env, -IloInfinity, lhs, -coarseCutRhs);
-					model.add(range);
+					part_call.masterProb.getModel().add(range);
 					cuts.add(range);
 					cutrhs.push_back(coarseCutRhs);
 					stat.num_opt_cuts++;
@@ -694,12 +694,9 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 	stab_center.end();
 	xvals.end();
 	env2.end();
-	cplex.end();
-	model.end();
 	cuts.end();
 	center_cons.end();
-	x.end();
-	stat.finalpartitionsize = partition.size();
+	stat.finalpartitionsize = part_call.partition.size();
 	if (option == 1)
 		cout << "end solution mode...up to sample error" << endl;
 	if (option == 2)

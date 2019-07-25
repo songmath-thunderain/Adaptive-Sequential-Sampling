@@ -1,6 +1,7 @@
 #include "Solution.h"
 #include "Subproblem.h"
 #include "Extended.h"
+#include <stdlib.h>
 
 using namespace std;
 
@@ -140,7 +141,7 @@ int main(int argc, char** argv)
 		extend_form.solve_extended(env, prob, stat, clock);
 
 	}
-	/*if (option == 0)
+	if (option == 0)
 	{
 		// Benders single cut
 		vector<int> samples;
@@ -164,7 +165,7 @@ int main(int argc, char** argv)
 		cout << "feasobjval = " << stat.feasobjval << endl;
 		cout << "optimality gap = " << (stat.feasobjval-stat.relaxobjval)*1.0/(fabs(stat.feasobjval)+1e-10) << endl;
 	}
-	*/
+	
 
 	if (option == 2 || option == 6)
 	{

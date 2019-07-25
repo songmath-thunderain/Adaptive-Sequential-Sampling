@@ -5,9 +5,8 @@ double TIME_LIMIT = 7200;
 /*
   Constructor
 */
-Partition::Partition(vector<Component>& p, MasterProblem& m, Subproblem& s) {
+Partition::Partition(MasterProblem& m, Subproblem& s) {
 	// Need to copy element-wise?
-	partition = p;
 	masterProb = m;
 	subProb = s;
 }
@@ -98,7 +97,7 @@ bool Partition::addToCollection(const VectorXf& dualvec, vector<DualInfo>& dualI
 }
 
 //Took Out const vector<Component>& partition,
-void Partition::add_feas_cuts(IloEnv& env, TSLP& prob, IloModel& model, const IloNumVarArray& x, const IloNumArray& xvals, double subobjval, const VectorXf& dualvec, int i)
+void Partition::add_feas_cuts(IloEnv& env, TSLP& prob, const IloNumArray& xvals, double subobjval, const VectorXf& dualvec, int i)
 {
 	// Add feasibility cuts
 	vector<double> feas_cut_coef(prob.nbFirstVars, 0);
@@ -118,9 +117,9 @@ void Partition::add_feas_cuts(IloEnv& env, TSLP& prob, IloModel& model, const Il
 	for (int j = 0; j < prob.nbFirstVars; ++j)
 	{
 		if (fabs(feas_cut_coef[j]) > 1e-7)
-			lhsfeas += feas_cut_coef[j] * x[j];
+			lhsfeas += feas_cut_coef[j] * masterProb.x[j];
 	}
-	model.add(lhsfeas >= subobjval + sum_xvals);
+	masterProb.model.add(lhsfeas >= subobjval + sum_xvals);
 	lhsfeas.end();
 }
 
@@ -270,7 +269,7 @@ void Partition::gen_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNum
  /*
 
  */
-double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<int>& samples, const IloNumArray& stab_center, const vector<DualInfo>& dualInfoCollection, vector< vector<double> >& cutcoefs, vector<double>& cutrhs, vector<Component>& partition, const vector<VectorXf>& rhsvecs, IloNumArray& xvals, IloTimer& clock, STAT& stat) {
+double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<int>& samples, const IloNumArray& stab_center, const vector<DualInfo>& dualInfoCollection, vector< vector<double> >& cutcoefs, vector<double>& cutrhs, const vector<VectorXf>& rhsvecs, IloNumArray& xvals, IloTimer& clock, STAT& stat) {
 	// first stage constraints
 	for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
 	{
@@ -461,7 +460,7 @@ void Partition::computeSamplingError(double& samplingError, const vector<double>
 /*
   Finds coarse cuts and applies them to the master problem.
 */
-double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, IloCplex& cplex, IloModel& model, const IloNumVarArray& x, STAT& stat, IloRangeArray& center_cons, const IloNumArray& stab_center, IloRangeArray& cuts, const vector<double>& cutrhs, VectorXf& aggrCoarseCut, double& coarseCutRhs, vector<VectorXf>& partcoef, vector<double>& partrhs, double starttime, IloTimer& timer, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option) {
+double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, STAT& stat, IloRangeArray& center_cons, const IloNumArray& stab_center, IloRangeArray& cuts, const vector<double>& cutrhs, VectorXf& aggrCoarseCut, double& coarseCutRhs, vector<VectorXf>& partcoef, vector<double>& partrhs, double starttime, IloTimer& timer, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option) {
 	// coarse oracle
 	// won't add any cuts in this subroutine, just collect information, and decide whether or not add the coarse cut depending on whether the descent target is achieved
 	bool cutflag = 1;
@@ -517,7 +516,7 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 			continue;
 		}
 		aggrCoarseCut.setZero();
-		masterProb.getCplex().getValues(xvals, x);
+		masterProb.getCplex().getValues(xvals, masterProb.x);
 		VectorXf xiterateXf(prob.nbFirstVars);
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 			xiterateXf(j) = xvals[j];
@@ -591,7 +590,7 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 				//cout << "feas cuts!" << endl;
 				cutflag = 1;
 				// Add feasibility cuts
-				add_feas_cuts(env, prob, model, x, xvals, subobjval, dualvec, i);
+				add_feas_cuts(env, prob, xvals, subobjval, dualvec, i);
 			}
 			duals.end();
 		}

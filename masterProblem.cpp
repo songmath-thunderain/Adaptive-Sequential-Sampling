@@ -325,8 +325,8 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   /*
   Getter for xiterate variable.
   */
-  vector<double>& MasterProblem::getXiterate() {
-	  return xiterate;
+  double MasterProblem::getXiterateVal(int j) {
+	  return xiterate[j];
   }
 
   /*
@@ -369,4 +369,18 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   */
   IloObjective& MasterProblem::getLobj() {
 	  return lobj;
+  }
+
+  /*
+  Setter for xiterate variable.
+  */
+  void MasterProblem::setXiterateVal(int pos, double num) {
+	  xiterate[pos] = num;
+  }
+
+  /*
+  Setter for xiterateXf variable
+  */
+  void MasterProblem::setXiterateXF(int pos, double num) {
+	  xiterateXf(pos) = num;
   }

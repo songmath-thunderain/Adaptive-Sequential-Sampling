@@ -50,13 +50,15 @@ class MasterProblem {
 	IloNumVar& getTheta();
 	IloModel& getModel();
 	IloNumArray& getMeanxvals();
-	vector<double>& getXiterate();
+	double getXiterateVal(int j);
 	IloNumVar& getLtheta();
 	IloNumVarArray& getLx();
 	IloModel& getLevelmodel();
 	IloCplex& getLevelcplex();
 	IloRange& getRangeub();
 	IloObjective& getLobj();
+	void setXiterateVal(int pos, double num);
+	void setXiterateXF(int pos, double num);
   
   // Allow partition class to access private data.
   friend class Partition;
