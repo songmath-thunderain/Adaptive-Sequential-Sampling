@@ -148,7 +148,7 @@ int main(int argc, char** argv)
 		for (int k = 0; k < prob.nbScens; ++k)
 			samples.push_back(k);
 		VectorXf xiterateXf(prob.nbFirstVars);
-		solve_singlecut(env, prob, stat, clock, samples, xiterateXf);
+		solution_call.solve_singlecut(env, prob, stat, clock, samples, xiterateXf);
 		cout << "relaxobjval = " << stat.relaxobjval << endl;
 		cout << "feasobjval = " << stat.feasobjval << endl;
 		cout << "optimality gap = " << (stat.feasobjval-stat.relaxobjval)*1.0/(fabs(stat.feasobjval)+1e-10) << endl;
@@ -160,7 +160,7 @@ int main(int argc, char** argv)
 		for (int k = 0; k < prob.nbScens; ++k)
 			samples.push_back(k);
 		VectorXf xiterateXf(prob.nbFirstVars);
-		solve_level(env, prob, stat, clock, samples, xiterateXf, 0);
+		solution_call.solve_level(env, prob, stat, clock, samples, xiterateXf, 0);
 		cout << "relaxobjval = " << stat.relaxobjval << endl;
 		cout << "feasobjval = " << stat.feasobjval << endl;
 		cout << "optimality gap = " << (stat.feasobjval-stat.relaxobjval)*1.0/(fabs(stat.feasobjval)+1e-10) << endl;
