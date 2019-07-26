@@ -1,7 +1,6 @@
 #ifndef EXTENDED_H
 #define EXTENDED_H
 
-#include "adaptiveSamples.h"
 #include "Subproblem.h"
 #include "structs.h"
 
