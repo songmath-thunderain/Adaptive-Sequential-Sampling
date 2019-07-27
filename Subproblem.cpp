@@ -256,9 +256,12 @@ void Subproblem::construct_second_feas(class IloEnv& env, const TSLP& prob)
 
 vector<double> Subproblem::calculate_bd(const TSLP& prob, const IloNumArray& xvals, int k)
 {
-	vector<double> bd;
+
+	vector<double> bd(prob.nbSecRows,0);
+
 	for (int i = 0; i < prob.nbSecRows; ++i)
 	{
+
 		bd[i] = prob.secondconstrbd[k * prob.nbSecRows + i];
 		for (int j = 0; j < prob.nbPerRow[i]; ++j)
 		{

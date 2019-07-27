@@ -1,7 +1,6 @@
 #include "Solution.h"
 #include "Subproblem.h"
 #include "Extended.h"
-#include <stdlib.h>
 
 using namespace std;
 
@@ -133,6 +132,7 @@ int main(int argc, char** argv)
 	stat.iter = 0;
 	stat.partitionsize = 0;
 	stat.finalpartitionsize = 0;
+
 	if (option == -1)
 	{
 		// extended formulation
@@ -149,6 +149,7 @@ int main(int argc, char** argv)
 			samples.push_back(k);
 		VectorXf xiterateXf(prob.nbFirstVars);
 		solution_call.solve_singlecut(env, prob, stat, clock, samples, xiterateXf);
+		
 		cout << "relaxobjval = " << stat.relaxobjval << endl;
 		cout << "feasobjval = " << stat.feasobjval << endl;
 		cout << "optimality gap = " << (stat.feasobjval-stat.relaxobjval)*1.0/(fabs(stat.feasobjval)+1e-10) << endl;
@@ -165,8 +166,6 @@ int main(int argc, char** argv)
 		cout << "feasobjval = " << stat.feasobjval << endl;
 		cout << "optimality gap = " << (stat.feasobjval-stat.relaxobjval)*1.0/(fabs(stat.feasobjval)+1e-10) << endl;
 	}
-	
-
 	if (option == 2 || option == 6)
 	{
 		// partily inexact bundle method with partitions

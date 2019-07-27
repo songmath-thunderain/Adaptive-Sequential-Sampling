@@ -531,7 +531,7 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 
 			/* Initializing bd, so subprob_partition can be deleted
 			   is partition.size() and prob.nbSecRows the same thing?*/
-			vector<double> bd;
+			vector<double> bd(prob.nbScens,0);
 			for (int m = 0; m < prob.nbSecRows; ++m)
 			{
 				bd[m] = 0;
