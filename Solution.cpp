@@ -56,7 +56,7 @@ void Solution::solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cl
 	bool feas_flag = 1;
 
 	// Construct Master Problem
-	MasterProblem master(env, prob, stat, clock, samples, xiterateXf);
+	Masterproblem master(env, prob, stat, clock, samples, xiterateXf);
 	// Add first-stage constraints and objective
 	master.define_lp_model();
 
@@ -196,7 +196,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 	// Create and define level and quadratic Master Problems
 	IloEnv meanenv;
 	IloEnv lenv;
-	MasterProblem master(env, prob, stat, clock, samples, xiterateXf, meanenv, lenv);
+	Masterproblem master(env, prob, stat, clock, samples, xiterateXf, meanenv, lenv);
 	master.define_lp_model();
 	master.define_qp_model();
 
@@ -216,6 +216,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 		feas_flag = 1;
 		IloEnv env2;
 		stat.iter++;
+		cout << "stat.iter = " << stat.iter << ", stat.feasobjval = " << stat.feasobjval << ", stat.relaxobjval = " << stat.relaxobjval << endl;
 		IloNumArray xiteratevals(env2, prob.nbFirstVars);
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 		{
@@ -237,7 +238,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 			// solve subproblems for each partition
 			IloNumArray duals(env2);
 			bool feasflag;
-			double subobjval = subp.solve(prob, xiteratevals, duals, samples[k], feasflag, subp.calculate_bd(prob, master.getMeanxvals(), samples[k]));
+			double subobjval = subp.solve(prob, xiteratevals, duals, samples[k], feasflag, subp.calculate_bd(prob, xiteratevals, samples[k]));
 			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
 			for (int i = 0; i < prob.nbSecRows + prob.nbSecVars; ++i)
 				dualvec(i) = duals[i];
@@ -364,7 +365,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 	// Create Partition object
 	IloObjective QPobj;
 	IloEnv meanenv;
-	MasterProblem masterP(env, prob, stat, clock, samples, xiterateXf);
+	Masterproblem masterP(env, prob, stat, clock, samples, xiterateXf);
 	Subproblem subP(env, prob);
 	Partition part_call(masterP, subP);
 

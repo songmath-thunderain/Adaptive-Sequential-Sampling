@@ -3,7 +3,7 @@
 #define PARTITION_H
 
 #include "Subproblem.h"
-#include "MasterProblem.h"
+#include "Masterproblem.h"
 
 using namespace std;
 using Eigen::VectorXf;
@@ -13,7 +13,7 @@ class Partition {
 
 private:
 	vector<Component> partition;
-	MasterProblem masterProb;
+	Masterproblem masterProb;
 	Subproblem subProb;
 
 	//Coarse Oracle's Helper Functions
@@ -27,7 +27,7 @@ private:
 
 public:
 	//Constructor
-	Partition(MasterProblem& masterProb, Subproblem& subProb);
+	Partition(Masterproblem& masterProb, Subproblem& subProb);
 	//Default Constructor
 	Partition();
 	//Deconstructor

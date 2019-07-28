@@ -60,6 +60,8 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 
 	  this->lenv = lenv;
 	  levelmodel = IloModel(lenv);
+	  lx = IloNumVarArray(lenv, prob.firstvarlb, prob.firstvarub);
+	  ltheta = IloNumVar(lenv, -IloInfinity, IloInfinity);
 	  lsum = IloExpr(lenv);
 	  for (int j = 0; j < prob.nbFirstVars; ++j)
 		  lsum += lx[j] * prob.objcoef[j];
@@ -69,8 +71,6 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 	  lsum.end();
 	  lobj = IloObjective(IloMinimize(lenv));
 	  levelmodel.add(lobj);
-	  lx = IloNumVarArray(lenv, prob.firstvarlb, prob.firstvarub);
-	  ltheta = IloNumVar(lenv, -IloInfinity, IloInfinity);
 	  levelcplex = IloCplex(levelmodel);
   }
 

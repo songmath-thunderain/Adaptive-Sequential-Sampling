@@ -9,7 +9,7 @@
 #include <ilcplex/ilocplex.h>
 #include <vector>
 #include <set>
-#include <Eigen/Dense>
+#include <Eigen>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -19,7 +19,7 @@ extern "C" {
 }
 #include <time.h>
 
-#include "MasterProblem.h"
+#include "Masterproblem.h"
 #include "Subproblem.h"
 #include "Partition.h"
 #include "structs.h"
@@ -46,7 +46,7 @@ public:
 
 	bool addToCollection(const VectorXf& dualvec, vector<DualInfo>& dualInfoCollection);
 
-	void externalEval(IloEnv& env, Subprob& subp, const TSLP& prob, const IloNumArray& xvals, int sampleSize, vector<double>& objValVec);
+	void externalEval(IloEnv& env, Subproblem& subp, const TSLP& prob, const IloNumArray& xvals, int sampleSize, vector<double>& objValVec);
 
 	void solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, int option, bool saaError);
 
@@ -56,13 +56,13 @@ public:
 
 	bool solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option, bool initial, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int& nearOptimal, double remaintime);
 
-	void SRP(IloEnv& env, TSLP& prob, Subprob& subp, IloTimer& clock, int nbIterEvalScens, const vector<int>& samplesForEval, double& G, double& S, const IloNumArray& xvals, const IloNumArray& xvals2, vector<double>& scenObjEval);
+	void SRP(IloEnv& env, TSLP& prob, Subproblem& subp, IloTimer& clock, int nbIterEvalScens, const vector<int>& samplesForEval, double& G, double& S, const IloNumArray& xvals, const IloNumArray& xvals2, vector<double>& scenObjEval);
 
 	void BMschedule(Sequence& seq);
 
 	void sequentialSetup(Sequence& seq, int option);
 
-	void finalEval(IloEnv& env, TSLP& prob, Subprob& subp, const VectorXf& xiterateXf, STAT& stat);
+	void finalEval(IloEnv& env, TSLP& prob, Subproblem& subp, const VectorXf& xiterateXf, STAT& stat);
 };
 
 #endif

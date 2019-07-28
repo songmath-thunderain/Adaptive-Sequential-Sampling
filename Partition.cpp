@@ -5,7 +5,7 @@ double TIME_LIMIT = 7200;
 /*
   Constructor
 */
-Partition::Partition(MasterProblem& m, Subproblem& s) {
+Partition::Partition(Masterproblem& m, Subproblem& s) {
 	// Need to copy element-wise?
 	masterProb = m;
 	subProb = s;
@@ -24,7 +24,7 @@ Partition::Partition() {
 */
 Partition::~Partition() {
 	// Need to destroy partition?
-	masterProb.~MasterProblem();
+	masterProb.~Masterproblem();
 	subProb.~Subproblem();
 }
 

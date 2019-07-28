@@ -5,7 +5,7 @@
 #include <ilcplex/ilocplex.h>
 #include <vector>
 #include <set>
-#include <Eigen/Dense>
+#include <Eigen>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
