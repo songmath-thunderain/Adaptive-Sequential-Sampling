@@ -3,7 +3,7 @@
 #define PARTITION_H
 
 #include "Subproblem.h"
-#include "masterProblem.h"
+#include "MasterProblem.h"
 
 using namespace std;
 using Eigen::VectorXf;

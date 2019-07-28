@@ -106,6 +106,8 @@ void Solution::solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cl
 			IloNumArray duals(env);
 			bool feasflag;
 			double subobjval = subp.solve(prob, xvals, duals, samples[k], feasflag, subp.calculate_bd(prob, xvals, samples[k]));
+			
+
 			VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
 			for (int i = 0; i < prob.nbSecRows + prob.nbSecVars; ++i)
 				dualvec(i) = duals[i];
@@ -170,12 +172,11 @@ void Solution::solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cl
 		if (stat.solvetime > 10800)
 			break;
 	}
-
 }
 
 
 
-void Solution:: solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option)
+void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option)
 {
 	// Level: level method starts with the mean-value solution
 	// option = 0: solving SAA for getting a candidate solution; option = 1: solving SAA for evaluating a given solution using CI
@@ -435,7 +436,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		{
 			double lasttime = clock.getTime();
 			coarseLB = part_call.coarse_oracle(env, prob, xvals, feasboundscen, cutcoefscen, stat, center_cons, stab_center, cuts, cutrhs, aggrCoarseCut, coarseCutRhs, partcoef, partrhs, starttime, clock, scenObjs, samples, dualInfoCollection, rhsvecs, option);
-			
+
 			stat.solvetime = clock.getTime() - starttime;
 			if (stat.solvetime > remaintime)
 			{
@@ -801,7 +802,7 @@ double Solution::solve_mean_value_model(const TSLP& prob, IloEnv& meanenv, IloNu
 
 
 
-void Solution:: computeSamplingError(double& samplingError, const vector<double>& scenObjs)
+void Solution::computeSamplingError(double& samplingError, const vector<double>& scenObjs)
 {
 	samplingError = 0;
 	double sampleMean = 0;
