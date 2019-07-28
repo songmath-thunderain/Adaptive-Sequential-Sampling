@@ -8,7 +8,7 @@
 //#include "adaptiveSamples.h"
 using Eigen::VectorXf;
 
-class MasterProblem {
+class Masterproblem {
 private:
 	IloEnv env;
 	TSLP prob;
@@ -36,11 +36,11 @@ private:
 	IloCplex levelcplex;
 
 public:
-	MasterProblem();
-	MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf);
+	Masterproblem();
+	Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf);
 	//MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv meanenv);
-	MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv meanenv, IloEnv lenv);
-	~MasterProblem();
+	Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv meanenv, IloEnv lenv);
+	~Masterproblem();
 	void define_lp_model();
 	void define_qp_model();
 	void setup_bundle_QP(const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons);

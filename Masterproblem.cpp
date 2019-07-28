@@ -3,19 +3,19 @@
   Interacts with subproblems to improve approximations.
 */
 
-#include "MasterProblem.h"
+#include "Masterproblem.h"
 
 /*
 	Default constructor
 */
-MasterProblem::MasterProblem() {
+Masterproblem::Masterproblem() {
 
 }
 
 /*
 	Constructor for level master problem
 */
-MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf) {
+Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf) {
 	this->env = env;
 	this->prob = prob;
 	this->stat = stat;
@@ -47,8 +47,8 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   /*
 	Constructor for Quadratic Master Problem.
   */
-  MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv meanenv, IloEnv lenv)
-	  : MasterProblem::MasterProblem(env, prob, stat, clock, samples, xiterateXf) {
+  Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv meanenv, IloEnv lenv)
+	  : Masterproblem::Masterproblem(env, prob, stat, clock, samples, xiterateXf) {
 	  this->meanenv = meanenv;
 	  meanxvals = IloNumArray(meanenv);
 	  meanobj = solve_mean_value_model(prob, meanenv, meanxvals, samples);
@@ -77,7 +77,7 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   /*
     Destructor
   */
-  MasterProblem::~MasterProblem() {
+  Masterproblem::~Masterproblem() {
     cplex.end();
     model.end();
     // *** quadratic (only in solve_level)
@@ -91,7 +91,7 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   /*
     Set initial constraints for level master problem.
   */
-  void MasterProblem::define_lp_model() {
+  void Masterproblem::define_lp_model() {
 	// Adding first-stage constraints
     for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
   	{
@@ -124,7 +124,7 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   /*
     Set initial constraint for quadratic master problem.
   */
-  void MasterProblem::define_qp_model() {
+  void Masterproblem::define_qp_model() {
 	// Adding first-stage constraints
 	for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
 	{
@@ -146,7 +146,7 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   /*
 	Set up master problem with partition
   */
-  void MasterProblem::setup_bundle_QP(const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons) {
+  void Masterproblem::setup_bundle_QP(const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons) {
   	// first stage constraints
   	for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
   	{
@@ -194,7 +194,7 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   	//cplex.setParam(IloCplex::EpOpt, 1e-4);
   }
 
-  double MasterProblem::solve_mean_value_model(const TSLP& prob, IloEnv& meanenv, IloNumArray& meanxvals, const vector<int>& samples) {
+  double Masterproblem::solve_mean_value_model(const TSLP& prob, IloEnv& meanenv, IloNumArray& meanxvals, const vector<int>& samples) {
     IloModel meanmodel(meanenv);
     IloNumVarArray meanx(meanenv, prob.firstvarlb, prob.firstvarub);
     IloNumVarArray meany(meanenv, prob.nbSecVars, -IloInfinity, IloInfinity);
@@ -290,97 +290,97 @@ MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   /*
 	Getter for cplex variable.
   */
-  IloCplex& MasterProblem::getCplex() {
+  IloCplex& Masterproblem::getCplex() {
 	  return cplex;
   }
 
   /*
 	Getter for x variable.
   */
-  IloNumVarArray& MasterProblem::getX() {
+  IloNumVarArray& Masterproblem::getX() {
 	  return x;
   }
 
   /*
   Getter for theta variable.
   */
-  IloNumVar& MasterProblem::getTheta() {
+  IloNumVar& Masterproblem::getTheta() {
 	  return theta;
   }
 
   /*
   Getter for model variable.
   */
-  IloModel& MasterProblem::getModel() {
+  IloModel& Masterproblem::getModel() {
 	  return model;
   }
 
   /*
   Getter for meanxvals variable.
   */
-  IloNumArray& MasterProblem::getMeanxvals() {
+  IloNumArray& Masterproblem::getMeanxvals() {
 	  return meanxvals;
   }
 
   /*
   Getter for xiterate variable.
   */
-  double MasterProblem::getXiterateVal(int j) {
+  double Masterproblem::getXiterateVal(int j) {
 	  return xiterate[j];
   }
 
   /*
   Getter for ltheta variable.
   */
-  IloNumVar& MasterProblem::getLtheta() {
+  IloNumVar& Masterproblem::getLtheta() {
 	  return ltheta;
   }
 
   /*
   Getter for lx variable.
   */
-  IloNumVarArray& MasterProblem::getLx() {
+  IloNumVarArray& Masterproblem::getLx() {
 	  return lx;
   }
 
   /*
   Getter for levelmodel variable.
   */
-  IloModel& MasterProblem::getLevelmodel() {
+  IloModel& Masterproblem::getLevelmodel() {
 	  return levelmodel;
   }
 
   /*
   Getter for levelcplex variable.
   */
-  IloCplex& MasterProblem::getLevelcplex() {
+  IloCplex& Masterproblem::getLevelcplex() {
 	  return levelcplex;
   }
 
   /*
   Getter for rangeub variable.
   */
-  IloRange& MasterProblem::getRangeub() {
+  IloRange& Masterproblem::getRangeub() {
 	  return rangeub;
   }
 
   /*
   Getter for lobj variable.
   */
-  IloObjective& MasterProblem::getLobj() {
+  IloObjective& Masterproblem::getLobj() {
 	  return lobj;
   }
 
   /*
   Setter for xiterate variable.
   */
-  void MasterProblem::setXiterateVal(int pos, double num) {
+  void Masterproblem::setXiterateVal(int pos, double num) {
 	  xiterate[pos] = num;
   }
 
   /*
   Setter for xiterateXf variable
   */
-  void MasterProblem::setXiterateXF(int pos, double num) {
+  void Masterproblem::setXiterateXF(int pos, double num) {
 	  xiterateXf(pos) = num;
   }
