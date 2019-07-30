@@ -193,14 +193,23 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 		accuracy = 1e-4;
 	}
 	double starttime = clock.getTime();
-	// Create and define level and quadratic Master Problems
+
 	IloEnv meanenv;
+	IloNumArray meanxvals(meanenv);
+	double meanobj = solve_mean_value_model(prob, meanenv, meanxvals, samples);
+	vector<double> xiterate(prob.nbFirstVars);
+	// Assign xiterate to meanx
+	for (int j = 0; j < prob.nbFirstVars; ++j)
+		xiterate[j] = meanxvals[j];
+	bool feas_flag = 1;
+	meanxvals.end();
+	meanenv.end();
+
+	// Create and define level and quadratic Master Problems
 	IloEnv lenv;
-	Masterproblem master(env, prob, stat, clock, samples, xiterateXf, meanenv, lenv);
+	Masterproblem master(env, prob, stat, clock, samples, xiterateXf, lenv);
 	master.define_lp_model();
 	master.define_qp_model();
-
-	bool feas_flag = 1;
 
 	// We initiate an LP model for the second-stage problem, and everytime (iteration/sceanrio) we just update the rhs and solve: constraint coefficients are the same across all scenarios
 	// we initiate both optimization model and feasibility model
@@ -217,16 +226,15 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 		IloEnv env2;
 		stat.iter++;
 		cout << "stat.iter = " << stat.iter << ", stat.feasobjval = " << stat.feasobjval << ", stat.relaxobjval = " << stat.relaxobjval << endl;
-		IloNumArray xiteratevals(env2, prob.nbFirstVars);
+		IloNumArray xiteratevals(env2, prob.nbFirstVars);			
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 		{
-			master.setXiterateXF(j, master.getXiterateVal(j));
-			xiteratevals[j] = master.getXiterateVal(j);
+			xiterateXf(j) = xiterate[j];
+			xiteratevals[j] = xiterate[j];
 		}
 		double feasbound = 0.0;
 		for (int j = 0; j < prob.nbFirstVars; ++j)
-			feasbound += master.getXiterateVal(j) * prob.objcoef[j];
-
+			feasbound += xiterate[j] * prob.objcoef[j];
 		IloExpr lhsaggr(env);
 		lhsaggr += master.getTheta();
 		IloExpr llhsaggr(lenv);
@@ -235,7 +243,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 		double lasttime = clock.getTime();
 		for (int k = 0; k < nbScens; ++k)
 		{
-			// solve subproblems for each partition
+			// solve subproblems for each scenario
 			IloNumArray duals(env2);
 			bool feasflag;
 			double subobjval = subp.solve(prob, xiteratevals, duals, samples[k], feasflag, subp.calculate_bd(prob, xiteratevals, samples[k]));
@@ -312,7 +320,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 		{
 			objExpr += master.getLx()[j] * master.getLx()[j];
-			objExpr -= master.getLx()[j] * 2 * master.getXiterateVal(j);
+			objExpr -= master.getLx()[j] * 2 * xiterate[j];
 		}
 		master.getLobj().setExpr(objExpr);
 		objExpr.end();
@@ -323,7 +331,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 		IloNumArray lxval(lenv);
 		master.getLevelcplex().getValues(lxval, master.getLx());
 		for (int j = 0; j < prob.nbFirstVars; ++j)
-			master.setXiterateVal(j, lxval[j]);
+			xiterate[j] = lxval[j];
 		lxval.end();
 		env2.end();
 		//cout << "relaxobjval = " << stat.relaxobjval << endl;

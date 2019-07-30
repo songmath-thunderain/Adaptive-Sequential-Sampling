@@ -21,7 +21,6 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 	this->stat = stat;
 	//this->clock = clock;
 	this->samples = samples;
-	this->xiterateXf = xiterateXf;
 	
 	model = IloModel(env);
 	x = IloNumVarArray(env, prob.firstvarlb, prob.firstvarub);
@@ -30,34 +29,11 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 }
 
 /*
-  Constructor for solve_level.
-  MasterProblem::MasterProblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv meanenv)
-	: MasterProblem::MasterProblem(env, prob, stat, clock, samples, xiterateXf) {
-	this->meanenv = meanenv;
-	meanxvals = IloNumArray(meanenv);
-	meanobj = solve_mean_value_model(prob, meanenv, meanxvals, samples);
-	xiterate.resize(prob.nbFirstVars);
-	for (int j = 0; j < prob.nbFirstVars; ++j)
-		xiterate[j] = meanxvals[j];
-	meanxvals.end();
-	meanenv.end();
-  }
-  */
-
-  /*
 	Constructor for Quadratic Master Problem.
-  */
-  Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv meanenv, IloEnv lenv)
+*/
+  Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv lenv)
 	  : Masterproblem::Masterproblem(env, prob, stat, clock, samples, xiterateXf) {
-	  this->meanenv = meanenv;
-	  meanxvals = IloNumArray(meanenv);
-	  meanobj = solve_mean_value_model(prob, meanenv, meanxvals, samples);
-	  xiterate.resize(prob.nbFirstVars);
-	  for (int j = 0; j < prob.nbFirstVars; ++j)
-		  xiterate[j] = meanxvals[j];
-	  meanxvals.end();
-	  meanenv.end();
-
+	  // Are all initializations for the LP model done?
 	  this->lenv = lenv;
 	  levelmodel = IloModel(lenv);
 	  lx = IloNumVarArray(lenv, prob.firstvarlb, prob.firstvarub);
@@ -194,99 +170,6 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   	//cplex.setParam(IloCplex::EpOpt, 1e-4);
   }
 
-  double Masterproblem::solve_mean_value_model(const TSLP& prob, IloEnv& meanenv, IloNumArray& meanxvals, const vector<int>& samples) {
-    IloModel meanmodel(meanenv);
-    IloNumVarArray meanx(meanenv, prob.firstvarlb, prob.firstvarub);
-    IloNumVarArray meany(meanenv, prob.nbSecVars, -IloInfinity, IloInfinity);
-    // first-stage constraints
-    for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
-    {
-      IloExpr lhs(meanenv);
-      for (int j = 0; j < prob.firstconstrind[i].getSize(); ++j)
-        lhs += meanx[prob.firstconstrind[i][j]] * prob.firstconstrcoef[i][j];
-      IloRange range(meanenv, prob.firstconstrlb[i], lhs, prob.firstconstrub[i]);
-      meanmodel.add(range);
-      lhs.end();
-	}
-    int nbScens = samples.size();
-    // second-stage constraints
-    for (int i = 0; i < prob.nbSecRows; ++i)
-    {
-      IloExpr lhs(meanenv);
-      for (int j = 0; j < prob.nbPerRow[i]; ++j)
-      {
-        int ind = prob.CoefInd[i][j];
-        if (ind >= prob.nbFirstVars)
-          lhs += meany[ind - prob.nbFirstVars] * prob.CoefMat[i][j];
-        else
-          lhs += meanx[ind] * prob.CoefMat[i][j];
-      }
-      // set constraint bounds
-      double bd = 0;
-      for (int k = 0; k < nbScens; ++k)
-        bd += prob.secondconstrbd[samples[k] * prob.nbSecRows + i];
-      bd = bd * 1.0 / nbScens;
-      IloRange range;
-      if (prob.secondconstrsense[i] == -1)
-        range = IloRange(meanenv, bd, lhs, IloInfinity);
-      if (prob.secondconstrsense[i] == 0)
-        range = IloRange(meanenv, bd, lhs, bd);
-      if (prob.secondconstrsense[i] == 1)
-        range = IloRange(meanenv, -IloInfinity, lhs, bd);
-      meanmodel.add(range);
-      lhs.end();
-    }
-    // second-stage variable bounds
-    for (int i = 0; i < prob.nbSecVars; ++i)
-    {
-      IloExpr lhs(meanenv);
-      lhs += meany[i];
-      IloRange range(meanenv, -IloInfinity, lhs, IloInfinity);
-      if (prob.secondvarlb[i] != -IloInfinity)
-      {
-        double bd = 0;
-        for (int k = 0; k < nbScens; ++k)
-          bd += prob.secondvarlb[samples[k] * prob.nbSecVars + i];
-        bd = bd * 1.0 / nbScens;
-        range.setLB(bd);
-      }
-      if (prob.secondvarub[i] != IloInfinity)
-      {
-        double bd = 0;
-        for (int k = 0; k < nbScens; ++k)
-          bd += prob.secondvarub[samples[k] * prob.nbSecVars + i];
-        bd = bd * 1.0 / nbScens;
-        range.setUB(bd);
-      }
-      meanmodel.add(range);
-      lhs.end();
-    }
-    IloExpr meanobj(meanenv);
-    for (int i = 0; i < prob.nbFirstVars; ++i)
-      meanobj += meanx[i] * prob.objcoef[i];
-
-    for (int i = 0; i < prob.objcoef.getSize(); ++i)
-    {
-      if (i >= prob.nbFirstVars)
-        meanobj += meany[i - prob.nbFirstVars] * prob.objcoef[i];
-    }
-    meanmodel.add(IloMinimize(meanenv, meanobj));
-    meanobj.end();
-    IloCplex meancplex(meanmodel);
-    meancplex.setParam(IloCplex::TiLim, 3600);
-    meancplex.setParam(IloCplex::Threads, 1);
-    meancplex.setParam(IloCplex::SimDisplay, 0);
-    meancplex.setOut(meanenv.getNullStream());
-    meancplex.solve();
-    meancplex.getValues(meanxvals, meanx);
-    double returnval = meancplex.getObjValue();
-    meancplex.end();
-    meanmodel.end();
-    meanx.end();
-    meany.end();
-    return returnval;
-  }
-
   /*
 	Getter for cplex variable.
   */
@@ -313,20 +196,6 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   */
   IloModel& Masterproblem::getModel() {
 	  return model;
-  }
-
-  /*
-  Getter for meanxvals variable.
-  */
-  IloNumArray& Masterproblem::getMeanxvals() {
-	  return meanxvals;
-  }
-
-  /*
-  Getter for xiterate variable.
-  */
-  double Masterproblem::getXiterateVal(int j) {
-	  return xiterate[j];
   }
 
   /*
@@ -371,16 +240,3 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 	  return lobj;
   }
 
-  /*
-  Setter for xiterate variable.
-  */
-  void Masterproblem::setXiterateVal(int pos, double num) {
-	  xiterate[pos] = num;
-  }
-
-  /*
-  Setter for xiterateXf variable
-  */
-  void Masterproblem::setXiterateXF(int pos, double num) {
-	  xiterateXf(pos) = num;
-  }
