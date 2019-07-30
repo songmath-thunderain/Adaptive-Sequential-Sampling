@@ -351,8 +351,6 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 	// option = 0: Just use the relative opt gap, solution mode: 1e-6; option = 1: Use the adaptive sampling type threshold: when opt gap is small relative to the sample error, option = 2: use relative opt gap, evaluation mode: 1e-4
 	// initial = 0: a stability center is provided as xiterteXf from the previous iteration; initial = 1: the very first sampled problem solved
 	// Unified coarse/fine oracle as a partly inexact oracle
-
-
 	bool returnflag = 1;
 	if (option == 1)
 		cout << "begin solution mode...up to sample error" << endl;
@@ -418,8 +416,8 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 	stat.warmstarttime = clock.getTime() - warmtemp;
 	meanenv.end();
 	IloRangeArray center_cons(env);
-	setup_bundle_QP(env, prob, part_call.masterProb.getCplex(), part_call.masterProb.getModel(), part_call.masterProb.getX(), stab_center, QPobj, cuts, center_cons);
-	//***** part_call.masterProb.setup_bundle_QP(stab_center, QPobj, cuts, center_cons);
+	//setup_bundle_QP(env, prob, part_call.masterProb.getCplex(), part_call.masterProb.getModel(), part_call.masterProb.getX(), stab_center, QPobj, cuts, center_cons);
+	part_call.masterProb.setup_bundle_QP(stab_center, QPobj, cuts, center_cons);
 	bool firstloop = 1;
 	double descent_target;
 	double opt_gap;
@@ -429,7 +427,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 	{
 		feas_flag = 1;
 		stat.iter++;
-		//cout << "stat.iter = " << stat.iter << endl;
+		cout << "stat.iter = " << stat.iter << endl;
 		stat.partitionsize += part_call.partition.size();
 		double feasboundscen = 0.0;
 		VectorXf cutcoefscen(prob.nbFirstVars);

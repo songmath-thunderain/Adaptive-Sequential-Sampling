@@ -632,12 +632,13 @@ bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
 		// solve subproblems for each partition
 		if (partition[i].indices.size() > 1)
 		{
-			bool returnflag = 1;
 			for (int k = 0; k < partition[i].indices.size(); ++k)
 			{
 				IloNumArray duals(env2);
 				bool feasflag;
-				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, subProb.calculate_bd(prob, xvals, k));
+				cout << "1" << endl;
+				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, subProb.calculate_bd(prob, xvals, partition[i].indices[k]));
+				cout << "2" << endl;
 				if (feasflag == 1)
 				{
 					// optimal, so return extreme point solution
