@@ -226,7 +226,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 		IloEnv env2;
 		stat.iter++;
 		cout << "stat.iter = " << stat.iter << ", stat.feasobjval = " << stat.feasobjval << ", stat.relaxobjval = " << stat.relaxobjval << endl;
-		IloNumArray xiteratevals(env2, prob.nbFirstVars);			
+		IloNumArray xiteratevals(env2, prob.nbFirstVars);
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 		{
 			xiterateXf(j) = xiterate[j];
@@ -343,6 +343,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 	}
 
 }
+
 
 
 
@@ -874,4 +875,678 @@ void Solution::setup_bundle_QP(IloEnv& env, const TSLP& prob, IloCplex& cplex, I
 	cplex.setParam(IloCplex::SimDisplay, 0);
 	cplex.setOut(env.getNullStream());
 	//cplex.setParam(IloCplex::EpOpt, 1e-4);
+}
+
+
+
+void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, int option, bool saaError)
+{
+	// option = 0: B&M (2011)
+	// option = 1,2: B&P-L FSP/SSP
+	// option = 3: use fixed rate schedule on increasing sample size, when BM fails to progress - when the new sampled problem is nearly optimal at the very first iteration for >= 3 times; also, once we switch to fixed rate schedule, we keep it in that way!
+	// option = 4: use fixed rate schedule all the way
+	// option = 5: use a simple heuristic "trust region" idea to adjust the sample size increasing rate
+
+	// saaError = 0: traditional sequential sampling
+	// saaError = 1: adaptive: solve SAA up to the sampling error
+
+	Sequence seq;
+	sequentialSetup(seq, option);
+	double epsilon; // epsilon is for stopping criterion of B&P-L
+	bool iterflag = 1;
+	int iter = 0;
+
+	// Construct subproblems
+	Subproblem subp(env,prob);
+	subp.construct_second_opt(env, prob);
+	subp.construct_second_feas(env, prob);
+
+	// collection of dual multipliers
+	vector<DualInfo> dualInfoCollection;
+	VectorXf xiterateXf(prob.nbFirstVars);
+	vector<VectorXf> rhsvecs;
+	// Store all the rhs vectors
+	for (int k = 0; k < prob.nbScens; ++k)
+	{
+		VectorXf rhsXf(prob.nbSecRows);
+		for (int j = 0; j < prob.nbSecRows; ++j)
+			rhsXf[j] = prob.secondconstrbd[j + k * prob.nbSecRows];
+		rhsvecs.push_back(rhsXf);
+	}
+	int nearOptimal = 0; // keep track of # of consecutive times where the new sampled problem is nearly optimal at the very first iteration
+
+	int nbIterEvalScens, nbIterSolScens;
+	double starttime = clock.getTime();
+
+	// We create some safeguard in case we do not finish by satisfying the stopping criterion in nMax steps
+	double minGS = 1e8;
+	double minGCI = 1e8;
+	//double increaseRate = 0.1; // Starting from 0.1, lower bounded by 0.05
+	while (iterflag == 1) // Outer loop
+	{
+		/* Setting up the sample size */
+		if (iter == 0 || option == 0 || option == 1 || option == 2)
+			nbIterEvalScens = seq.sampleSizes[iter];
+		else
+		{
+			if (option == 4 || option == 5)
+			{
+				// option = 4: use a fixed rate all the way
+				// option = 5: use a simple heuristic trust region idea to choose the sample size increasing rate
+				nbIterEvalScens = int(nbIterEvalScens * (1 + prob.increaseRate));
+				if (nbIterEvalScens < seq.sampleSizes[iter])
+					nbIterEvalScens = seq.sampleSizes[iter];
+			}
+			if (option == 3)
+			{
+				if (nearOptimal >= 3)
+				{
+					nbIterEvalScens = int(nbIterEvalScens * (1 + prob.increaseRate));
+					if (nbIterEvalScens < seq.sampleSizes[iter])
+						nbIterEvalScens = seq.sampleSizes[iter];
+				}
+				else
+				{
+					if (seq.sampleSizes[iter] > nbIterEvalScens)
+						nbIterEvalScens = seq.sampleSizes[iter];
+				}
+			}
+		}
+		nbIterSolScens = 2 * nbIterEvalScens;
+		cout << "nbIterEvalScens = " << nbIterEvalScens << ", nbIterSolScens = " << nbIterSolScens << endl;
+
+		/* Begin Solving sampled problems */
+		vector<int> samplesForSol;
+		bool evalFlag = 1;
+		if (nbIterSolScens >= prob.nbScens)
+		{
+			// In case nbIterSolScens gets too big!
+			for (int j = 0; j < prob.nbScens; ++j)
+				samplesForSol.push_back(j);
+			// No need to do probabilistic evaluation
+			evalFlag = 0;
+		}
+		else
+		{
+			samplesForSol = vector<int>(nbIterSolScens);
+			for (int j = 0; j < nbIterSolScens; ++j)
+				samplesForSol[j] = rand() % prob.nbScens;
+		}
+		/* Construct Master problem in each iteration */
+		IloModel mastermodel(env);
+		IloNumVarArray x(env, prob.firstvarlb, prob.firstvarub);
+		IloNumVarArray theta(env, nbIterSolScens, 0, IloInfinity);
+		// Adding first-stage constraints
+		for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
+		{
+			IloExpr lhs(env);
+			for (int j = 0; j < prob.firstconstrind[i].getSize(); ++j)
+				lhs += x[prob.firstconstrind[i][j]] * prob.firstconstrcoef[i][j];
+			IloRange range(env, prob.firstconstrlb[i], lhs, prob.firstconstrub[i]);
+			mastermodel.add(range);
+			lhs.end();
+		}
+		// Adding objective
+		IloExpr obj(env);
+		for (int i = 0; i < prob.nbFirstVars; ++i)
+			obj += x[i] * prob.objcoef[i];
+		for (int k = 0; k < nbIterSolScens; ++k)
+			obj += theta[k] * (1.0 / nbIterSolScens);
+		mastermodel.add(IloMinimize(env, obj));
+		obj.end();
+
+		IloCplex mastercplex(mastermodel);
+		mastercplex.setParam(IloCplex::TiLim, 10800);
+		mastercplex.setParam(IloCplex::Threads, 1);
+		// Dual simplex
+		mastercplex.setParam(IloCplex::RootAlg, 2);
+		mastercplex.setParam(IloCplex::BarDisplay, 0);
+		mastercplex.setParam(IloCplex::SimDisplay, 0);
+		mastercplex.setOut(env.getNullStream());
+		mastercplex.setParam(IloCplex::EpOpt, 1e-6);
+		/* Finish construct Master problem in each iteration */
+
+		// Adding all cutting planes from a collection of duals as constraints
+		IloRangeArray cutcon(env);
+		addInitialCuts(env, prob, mastermodel, x, theta, mastercplex, cutcon, samplesForSol, dualInfoCollection, xiterateXf, rhsvecs);
+		bool newSampleFlag = 0;
+		int innerIter = 0;
+		double feasobjval = 1e10;
+		double relaxobjval = -1e10;
+		while (newSampleFlag == 0) // Inner loop
+		{
+			// After obtaining samples, solve the sampled problem, obtain xval, relaxation bound for the sampled problem
+			innerIter++;
+			if (innerIter > 1 || dualInfoCollection.size() * samplesForSol.size() < 10000)
+				mastercplex.solve();
+			relaxobjval = mastercplex.getObjValue();
+			cout << "innerIter = " << innerIter << ", relaxobjval = " << relaxobjval << ", feasobjval = " << feasobjval << endl;;
+			IloNumArray xvals(env);
+			mastercplex.getValues(xvals, x);
+			for (int j = 0; j < prob.nbFirstVars; ++j)
+				xiterateXf(j) = xvals[j];
+			// solve the sampled subproblems, generate cuts, and then get an upper bound for the sampled problem
+			double tempfeasobjval = 0;
+			vector<double> scenobj;
+			bool cutflag = 0;
+			double sampleMean = 0;
+			IloNumArray scenthetaval(env);
+			mastercplex.getValues(scenthetaval, theta);
+			double tempsubprobtime = clock.getTime();
+			bool feas_flag = 1;
+			for (int kk = 0; kk < nbIterSolScens; ++kk)
+			{
+				int k = samplesForSol[kk];
+				IloNumArray duals(env);
+				bool feasflag;
+				double subobjval = subp.solve(prob, xvals, duals, k, feasflag, subp.calculate_bd(prob, xvals,k));
+				VectorXf dualvec(prob.nbSecRows + prob.nbSecVars);
+				for (int i = 0; i < prob.nbSecRows + prob.nbSecVars; ++i)
+					dualvec(i) = duals[i];
+				duals.end();
+				if (feasflag == 1)
+				{
+					scenobj.push_back(subobjval);
+					sampleMean += subobjval;
+					if (subobjval > scenthetaval[kk] + max(1e-5, abs(scenthetaval[kk])) * 1e-5)
+					{
+						VectorXf opt_cut_coef = prob.CoefMatXf.transpose() * dualvec.segment(0, prob.nbSecRows);
+						double sum_xvals = 0;
+						for (int j = 0; j < prob.nbFirstVars; ++j)
+						{
+							if (fabs(opt_cut_coef[j]) > 1e-7)
+								sum_xvals += opt_cut_coef[j] * xvals[j];
+						}
+						double rhssub = subobjval + sum_xvals;
+						// Need to add cuts here!
+						IloExpr lhs(env);
+						lhs += theta[kk];
+						for (int j = 0; j < prob.nbFirstVars; ++j)
+						{
+							if (fabs(opt_cut_coef[j]) > 1e-7)
+								lhs += x[j] * opt_cut_coef[j];
+						}
+						mastermodel.add(lhs >= rhssub);
+						lhs.end();
+						if (addToCollection(dualvec, dualInfoCollection) == true)
+						{
+							cutflag = 1;
+							DualInfo dual;
+							dual.dualvec = dualvec;
+							dual.rhs = rhssub - dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k];
+							dual.coefvec = opt_cut_coef;
+							dualInfoCollection.push_back(dual);
+						}
+					}
+					tempfeasobjval += subobjval;
+				}
+				else
+				{
+					cout << "; feas cut! Infeasibility = " << subobjval << endl;
+					cutflag = 1;
+					feas_flag = 0;
+					VectorXf feas_cut_coef = prob.CoefMatXf.transpose() * dualvec.segment(0, prob.nbSecRows);
+					double sum_xvals = feas_cut_coef.dot(xiterateXf);
+					IloExpr lhssub(env);
+					for (int j = 0; j < prob.nbFirstVars; ++j)
+					{
+						if (fabs(feas_cut_coef[j]) > 1e-7)
+							lhssub += x[j] * feas_cut_coef[j];
+					}
+					double rhssub = sum_xvals + subobjval;
+					stat.num_feas_cuts++;
+					mastermodel.add(lhssub >= rhssub);
+					lhssub.end();
+					// adding as first-stage constraints to be used in the future
+					IloIntArray tempInd(env);
+					IloNumArray tempCoef(env);
+					for (int j = 0; j < prob.nbFirstVars; ++j)
+					{
+						if (fabs(feas_cut_coef[j]) > 1e-7)
+						{
+							tempInd.add(j);
+							tempCoef.add(feas_cut_coef[j]);
+						}
+					}
+					prob.firstconstrind.add(tempInd);
+					prob.firstconstrcoef.add(tempCoef);
+					prob.firstconstrlb.add(rhssub);
+					prob.firstconstrub.add(IloInfinity);
+					break;
+				}
+			}
+			scenthetaval.end();
+			if (feas_flag == 1)
+			{
+				// The following will only happen if no feasibility cuts are generated
+				tempfeasobjval = tempfeasobjval * 1.0 / nbIterSolScens;
+				for (int j = 0; j < prob.nbFirstVars; ++j)
+					tempfeasobjval += xvals[j] * prob.objcoef[j];
+				if (tempfeasobjval < feasobjval)
+					feasobjval = tempfeasobjval;
+				// Get the optimality gap with respective to the current sample
+				double gap = feasobjval - relaxobjval;
+				/* Now decide if we should solve a new sampled problem (with a larger sample) or continue solving the current sampled problem */
+				if (saaError == 1 && evalFlag == 1)
+				{
+					// Get the sampling error
+					double samplingError = 0;
+					sampleMean = sampleMean * 1.0 / nbIterSolScens;
+					for (int kk = 0; kk < nbIterSolScens; ++kk)
+						samplingError += pow(scenobj[kk] - sampleMean, 2);
+					samplingError = sqrt(samplingError) * 1.0 / nbIterSolScens;
+					cout << "gap = " << gap << ", sample Error = " << samplingError << ", cutflag = " << cutflag << endl;
+					if (samplingError > gap * 10 || cutflag == 0)
+						newSampleFlag = 1;
+				}
+				else
+				{
+					cout << "gap = " << gap << ", cutflag = " << cutflag << endl;
+					if (gap * 1.0 / (fabs(feasobjval) + 1e-10) <= 1e-6 || cutflag == 0)
+						newSampleFlag = 1;
+				}
+			}
+			if (newSampleFlag == 1)
+			{
+				if (evalFlag == 0)
+				{
+					iterflag = 0;
+					stat.solvetime = clock.getTime() - starttime;
+					stat.mainIter = iter;
+					stat.finalSolExactObj = feasobjval;
+					stat.gapThreshold = 0;
+					stat.finalSampleSize = prob.nbScens;
+					cout << "final objective = " << stat.finalSolExactObj << ", calculated by the full set of scenarios!" << endl;
+				}
+				else
+				{
+					// Finish inner iteration, need to do some SRP type testing
+					if (innerIter == 1) //nearly optimal after the very first iteration
+					{
+						if (nearOptimal == 0)
+							nearOptimal = 1;
+						else
+							nearOptimal++;
+					}
+					else
+					{
+						if (nearOptimal < 3)
+							nearOptimal = 0;
+					}
+					// Now obtained xiterateXf, xvals, scenobj corresponding to \hat{x}_k
+					if ((option == 1 || option == 2) && iter == 0)
+					{
+						// epsilon is for stopping criterion of B&P-L, just set it to be small enough relative to the initial UB obtained from the first iteration
+						epsilon = prob.eps * fabs(feasobjval);
+					}
+					// Test stopping criterion: SRP type CI estimation
+					double tempEvaltime = clock.getTime();
+					double G = 0;
+					double S = 0;
+					vector<double> scenObjEval(nbIterEvalScens);
+					vector<int> samplesForEval(nbIterEvalScens);
+					for (int j = 0; j < nbIterEvalScens; ++j)
+						samplesForEval[j] = rand() % prob.nbScens;
+					STAT tempstat;
+					tempstat.relaxobjval = -1e10;
+					tempstat.feasobjval = 1e10;
+					VectorXf xiterateXf2(prob.nbFirstVars);
+					solve_level(env, prob, tempstat, clock, samplesForEval, xiterateXf2, 1);
+					IloNumArray xvals2(env, prob.nbFirstVars);
+					for (int j = 0; j < prob.nbFirstVars; ++j)
+						xvals2[j] = xiterateXf2(j);
+					// xiterateXf, xvals, scenObj correspondiing to \hat{x}_k, xiterateXf2, xvals2, scenObj2 corresponding to x^*_{n_k}
+					SRP(env, prob, clock, nbIterEvalScens, samplesForEval, G, S, xvals, xvals2, scenObjEval);
+					xvals2.end();
+					stat.evaltime += (clock.getTime() - tempEvaltime);
+
+					// Check if the stopping criterion is met
+					if (option == 0)
+					{
+						// B&M (2011)
+						cout << "G/S = " << G * 1.0 / S << ", G = " << G << ", S = " << S << endl;
+						if (G * 1.0 / S < minGS)
+							minGS = G * 1.0 / S;
+						if (G <= seq.h2 * S + seq.eps2)
+							iterflag = 0;
+						else
+							iter++;
+					}
+					if (option == 1 || option == 2)
+					{
+						cout << "CI width = " << G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) << ", epsilon = " << epsilon << endl;
+						// B&P-L: FSP/SSP
+						if (G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) < minGCI)
+							minGCI = G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens);
+						if (G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) <= epsilon)
+							iterflag = 0;
+						else
+						{
+							iter++;
+							if (option == 2)
+							{
+								// sample size for the next iteration will depend (adaptively) on the statistics of the current iteration
+								double const_b = t_quant * S + 1;
+								double const_c = nbIterEvalScens * G;
+								double const_delta = const_b * const_b + 4 * epsilon * const_c;
+								double const_v = (const_b + sqrt(const_delta)) * 1.0 / (2 * epsilon);
+								seq.sampleSizes[iter] = int(const_v * const_v) + 1;
+							}
+						}
+					}
+					if (option == 3)
+					{
+						// Start with BM - if BM fails to progress - switch to fixed (exponential) rate schedule
+						// Use either B&M (2011) or B&P-L criteria
+						if (G * 1.0 / S < minGS)
+							minGS = G * 1.0 / S;
+						if (G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) < minGCI)
+							minGCI = G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens);
+						if (G <= seq.h2 * S + seq.eps2 || G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) <= epsilon)
+							iterflag = 0;
+						else
+							iter++;
+					}
+					if (iter == seq.nMax)
+						iterflag = 0;
+					if (iterflag == 0)
+					{
+						cout << "# of iterations = " << iter << endl;
+						stat.solvetime = clock.getTime() - starttime;
+
+						// Now check if this estimation is correct by evaluating \hat{x}_k using the true distribution (all samples)
+						finalEval(env, prob, xiterateXf, stat);
+						stat.mainIter = iter;
+						if (option == 0)
+						{
+							// B&M (2011)
+							if (iter != seq.nMax)
+								stat.gapThreshold = seq.h * S + seq.eps;
+							else
+							{
+								stat.gapThreshold = (minGS + seq.h - seq.h2) * S + seq.eps;
+							}
+							cout << "optimality gap is less than " << stat.gapThreshold << " with prob >= 90%" << endl;
+						}
+						if (option == 1 || option == 2)
+						{
+							// B&P-L: FSP or SSP
+							if (iter != seq.nMax)
+								stat.gapThreshold = G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens);
+							else
+							{
+								stat.gapThreshold = minGCI;
+							}
+							cout << "optimality gap is less than " << stat.gapThreshold << " with prob >= 90%" << endl;
+						}
+						if (option == 3 || option == 4 || option == 5)
+						{
+							// Use either B&M (2011) or B&P-L criteria
+							if (iter != seq.nMax)
+							{
+								double gapThreshold = 1e8;
+								if (G <= seq.h2 * S + seq.eps2)
+									gapThreshold = seq.h * S + seq.eps;
+								if (G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) <= epsilon && G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) < gapThreshold)
+									gapThreshold = G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens);
+								stat.gapThreshold = gapThreshold;
+							}
+							else
+							{
+								if ((minGS + seq.h - seq.h2) * S + seq.eps < minGCI)
+									stat.gapThreshold = (minGS + seq.h - seq.h2) * S + seq.eps;
+								else
+									stat.gapThreshold = minGCI;
+							}
+							cout << "optimality gap is less than " << stat.gapThreshold << " with prob >= 90%" << endl;
+						}
+						stat.finalSampleSize = nbIterSolScens;
+					}
+				}
+			}
+			xvals.end();
+		}
+		stat.iter += innerIter;
+		cutcon.endElements();
+		cutcon.end();
+		mastercplex.end();
+		mastermodel.end();
+		x.end();
+		theta.end();
+	}
+
+}
+
+
+
+void Solution::finalEval(IloEnv& env, TSLP& prob, const VectorXf& xiterateXf, STAT& stat)
+{
+	Subproblem subprob(env, prob);
+	IloNumArray finalxvals(env);
+	double finalObj = 0;
+	for (int j = 0; j < prob.nbFirstVars; ++j)
+	{
+		finalxvals.add(xiterateXf(j));
+		finalObj += prob.objcoef[j] * xiterateXf(j);
+	}
+	double secStageObj = 0;
+	for (int k = 0; k < prob.nbScens; ++k)
+	{
+		IloNumArray duals(env);
+		bool feasflag = 0;
+		double subobjval = subprob.solve(prob, finalxvals, duals, k, feasflag, subprob.calculate_bd(prob, finalxvals, k));
+		if (feasflag == 0)
+		{
+			cout << "something is wrong!" << endl;
+			exit(0);
+		}
+		duals.end();
+		secStageObj += subobjval;
+	}
+	secStageObj = secStageObj * 1.0 / prob.nbScens;
+	finalObj += secStageObj;
+	cout << "final Obj = " << finalObj << endl;
+	finalxvals.end();
+	stat.finalSolExactObj = finalObj;
+}
+
+void Solution::SRP(IloEnv& env, TSLP& prob, IloTimer& clock, int nbIterEvalScens, const vector<int>& samplesForEval, double& G, double& S, const IloNumArray& xvals, const IloNumArray& xvals2, vector<double>& scenObjEval)
+{
+	Subproblem subprob;
+	vector<double> scenObj2(nbIterEvalScens);
+	for (int k = 0; k < nbIterEvalScens; ++k)
+	{
+		// solve subproblems for each scenario
+		IloNumArray duals(env);
+		bool feasflag;
+		double subobjval = subprob.solve(prob, xvals, duals, samplesForEval[k], feasflag, subprob.calculate_bd(prob,xvals,samplesForEval[k]));
+		if (feasflag == 0)
+		{
+			cout << "something is wrong!" << endl;
+			exit(0);
+		}
+		IloNumArray duals2(env);
+		double subobjval2 = subprob.solve(prob, xvals2, duals2, samplesForEval[k], feasflag, subprob.calculate_bd(prob, xvals2, samplesForEval[k]));
+		if (feasflag == 0)
+		{
+			cout << "something is wrong!" << endl;
+			exit(0);
+		}
+		duals.end();
+		duals2.end();
+		scenObjEval[k] = subobjval;
+		scenObj2[k] = subobjval2;
+	}
+
+	// Use n_k (independent) samples to evaluate this candidate solution: compute G and S
+	for (int k = 0; k < nbIterEvalScens; ++k)
+		G += (scenObjEval[k] - scenObj2[k]);
+	G = G * 1.0 / nbIterEvalScens;
+	double deterGap = 0;
+	for (int j = 0; j < prob.nbFirstVars; ++j)
+		deterGap += prob.objcoef[j] * (xvals[j] - xvals2[j]);
+	G += deterGap;
+	for (int k = 0; k < nbIterEvalScens; ++k)
+		S += pow(scenObjEval[k] - scenObj2[k] + deterGap - G, 2);
+	S = S * 1.0 / (nbIterEvalScens - 1);
+	S = sqrt(S);
+}
+
+void Solution::sequentialSetup(Sequence& seq, int option)
+{
+	// The sample size increasing schedule follows option 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP; option >= 3: geometric sequence, but lower bounded by B&M
+	// At most 100 outer iterations, nMax and p are pairwise, used in B&M (2011)
+	seq.nMax = 100; // int nMax = 500
+	seq.p = 0.153; // double p = 0.104
+	seq.h = 0.302;
+	seq.h2 = 0.015;
+	// eps, eps2 are for stopping criteria of B&M
+	seq.eps = 2e-7;
+	seq.eps2 = 1e-7;
+	seq.sampleSizes = vector<int>(seq.nMax);
+	//if (option == 0 || option >= 3)
+	//	BMschedule(seq);
+	seq.sampleSizes[0] = 50;
+	int initSample = 50;
+	if (option == 1 || option == 0)
+	{
+		// B&P-L: FSP, linear schedule
+		for (int k = 0; k < seq.nMax; ++k)
+			//seq.sampleSizes[k] = initSample+10*k;
+			seq.sampleSizes[k] = initSample + 100 * k;
+	}
+	if (option == 2)
+	{
+		// B&P-L: SSP
+		seq.sampleSizes[0] = initSample;
+	}
+}
+
+void Solution::addInitialCuts(IloEnv& env, TSLP& prob, IloModel& mastermodel, const IloNumVarArray& x, const IloNumVarArray& theta, IloCplex& mastercplex, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs)
+{
+	// Given a collection of dual multipliers, construct an initial master problem (relaxation)
+	if (dualInfoCollection.size() * samplesForSol.size() < 10000)
+	{
+		// Number of constraints is small enough to handle
+		for (int l = 0; l < dualInfoCollection.size(); ++l)
+		{
+			for (int kk = 0; kk < samplesForSol.size(); ++kk)
+			{
+				int k = samplesForSol[kk];
+				// assemble the cutcoef and cutrhs
+				VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
+				double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
+				IloExpr lhs(env);
+				lhs += theta[kk];
+				for (int j = 0; j < prob.nbFirstVars; ++j)
+				{
+					if (fabs(opt_cut_coef[j]) > 1e-7)
+						lhs += x[j] * opt_cut_coef[j];
+				}
+				IloRange range(env, opt_cut_rhs, lhs, IloInfinity);
+				mastermodel.add(range);
+				cutcon.add(range);
+				lhs.end();
+			}
+		}
+	}
+	else
+	{
+		// Too many initial constraints, add them as cutting planes
+		for (int kk = 0; kk < samplesForSol.size(); ++kk)
+		{
+			int k = samplesForSol[kk];
+			// assemble the cutcoef and cutrhs
+			double maxval = -1e8;
+			int maxind = -1;
+			for (int l = 0; l < dualInfoCollection.size(); ++l)
+			{
+				VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
+				double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
+				double rhsval = opt_cut_rhs - opt_cut_coef.transpose() * xiterateXf;
+				if (rhsval > maxval)
+				{
+					maxval = rhsval;
+					maxind = l;
+				}
+			}
+			IloExpr lhs(env);
+			lhs += theta[kk];
+			VectorXf init_cut_coef = dualInfoCollection[maxind].coefvec;
+			for (int j = 0; j < prob.nbFirstVars; ++j)
+			{
+				if (fabs(init_cut_coef[j]) > 1e-7)
+					lhs += x[j] * init_cut_coef[j];
+			}
+			IloRange range(env, dualInfoCollection[maxind].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[maxind].rhs, lhs, IloInfinity);
+			mastermodel.add(range);
+			cutcon.add(range);
+			lhs.end();
+		}
+		bool initialCutFlag = 1;
+		while (initialCutFlag == 1)
+		{
+			initialCutFlag = 0;
+			mastercplex.solve();
+			IloNumArray xvals(env);
+			IloNumArray thetavals(env);
+			mastercplex.getValues(xvals, x);
+			mastercplex.getValues(thetavals, theta);
+			VectorXf tempxiterateXf(prob.nbFirstVars);
+			for (int j = 0; j < prob.nbFirstVars; ++j)
+				tempxiterateXf(j) = xvals[j];
+			for (int kk = 0; kk < samplesForSol.size(); ++kk)
+			{
+				int k = samplesForSol[kk];
+				// assemble the cutcoef and cutrhs
+				double maxval = -1e8;
+				int maxind = -1;
+				for (int l = 0; l < dualInfoCollection.size(); ++l)
+				{
+					VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
+					double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
+					double rhsval = opt_cut_rhs - opt_cut_coef.transpose() * tempxiterateXf - thetavals[kk];
+					if (rhsval > maxval)
+					{
+						maxval = rhsval;
+						maxind = l;
+					}
+				}
+				if (maxval > max(1e-5, abs(thetavals[kk])) * 1e-5)
+				{
+					initialCutFlag = 1;
+					IloExpr lhs(env);
+					lhs += theta[kk];
+					VectorXf init_cut_coef = dualInfoCollection[maxind].coefvec;
+					for (int j = 0; j < prob.nbFirstVars; ++j)
+					{
+						if (fabs(init_cut_coef[j]) > 1e-7)
+							lhs += x[j] * init_cut_coef[j];
+					}
+					IloRange range(env, dualInfoCollection[maxind].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[maxind].rhs, lhs, IloInfinity);
+					mastermodel.add(range);
+					cutcon.add(range);
+					lhs.end();
+				}
+			}
+			xvals.end();
+			thetavals.end();
+		}
+	}
+}
+
+bool Solution::addToCollection(const VectorXf& dualvec, vector<DualInfo>& dualInfoCollection)
+{
+	// try to add dualvec into dualCollection: if it is not parallel to any other vector in the collection
+	bool flag = 1;
+	for (int j = 0; j < dualInfoCollection.size(); ++j)
+	{
+		double par = dualvec.dot(dualInfoCollection[j].dualvec) * 1.0 / (dualvec.norm() * dualInfoCollection[j].dualvec.norm());
+		if (par > 1 - 1e-3)
+		{
+			flag = 0;
+			break;
+		}
+	}
+	return flag;
 }

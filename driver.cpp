@@ -4,8 +4,6 @@
 
 using namespace std;
 
-double t_quant = 1.282; // For simplicity, just use z quantile (independent of degree of freedom), since sample sizes are usually large in the end
-
 double TIMELIMIT = 7200;
 
 int main(int argc, char** argv)
@@ -67,6 +65,7 @@ int main(int argc, char** argv)
 
 
 	ifstream file(filename);
+	cout << filename << endl;
 	if (!file)
 	{
 		cerr << "ERROR: could not open file '" << filename
@@ -206,18 +205,18 @@ int main(int argc, char** argv)
 			cout << xiterateXf[j] << " ";
 		cout << endl;
 	}
-	/*if (option == 3)
+	if (option == 3)
 	{
 		// Sequential procedure: solve SAAs in each iteration to optimality
 		// 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP
-		solve_adaptive(env, prob, stat, clock, suboption, 0);
+		solution_call.solve_adaptive(env, prob, stat, clock, suboption, 0);
 	}
 	if (option == 4)
 	{
 		// Adaptive procedure: solve SAAs in each iteration to the sampling error
 		// 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP; 3: fixed rate schedule after BM's schedule fails
-		solve_adaptive(env, prob, stat, clock, suboption, 1);
-	}
+		solution_call.solve_adaptive(env, prob, stat, clock, suboption, 1);
+	}/*
 	if (option == 5)
 	{
 		// Adaptive procedure, use partition-based approach (with warm starts) to solve the sampled problems
