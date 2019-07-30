@@ -9,7 +9,7 @@
 #include <ilcplex/ilocplex.h>
 #include <vector>
 #include <set>
-#include <Eigen/Dense>
+#include <Eigen>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -24,7 +24,8 @@ extern "C" {
 #include "Partition.h"
 #include "structs.h"
 
-double t_quant = 1.282; // For simplicity, just use z quantile (independent of degree of freedom), since sample sizes are usually large in the end
+//Move to Solution.cpp
+//double t_quant = 1.282; // For simplicity, just use z quantile (independent of degree of freedom), since sample sizes are usually large in the end
 
 using namespace std;
 
