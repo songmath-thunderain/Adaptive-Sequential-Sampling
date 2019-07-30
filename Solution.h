@@ -49,7 +49,7 @@ public:
 
 	bool addToCollection(const VectorXf& dualvec, vector<DualInfo>& dualInfoCollection);
 
-	void externalEval(IloEnv& env, Subprob& subp, const TSLP& prob, const IloNumArray& xvals, int sampleSize, vector<double>& objValVec);
+	//void externalEval(IloEnv& env, Subprob& subp, const TSLP& prob, const IloNumArray& xvals, int sampleSize, vector<double>& objValVec);
 
 	void solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, int option, bool saaError);
 

@@ -890,6 +890,7 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 	// saaError = 0: traditional sequential sampling
 	// saaError = 1: adaptive: solve SAA up to the sampling error
 
+	double t_quant = 1.282;
 	Sequence seq;
 	sequentialSetup(seq, option);
 	double epsilon; // epsilon is for stopping criterion of B&P-L
