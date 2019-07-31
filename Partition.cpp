@@ -24,8 +24,8 @@ Partition::Partition() {
 */
 Partition::~Partition() {
 	// Need to destroy partition?
-	masterProb.~Masterproblem();
-	subProb.~Subproblem();
+	//masterProb.~Masterproblem();
+	//subProb.~Subproblem();
 }
 
 //Took Out const vector<Component>& partition,
@@ -464,10 +464,6 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 	// coarse oracle
 	// won't add any cuts in this subroutine, just collect information, and decide whether or not add the coarse cut depending on whether the descent target is achieved
 	bool cutflag = 1;
-	IloNumArray secvarlb(env, partition.size() * prob.nbSecVars);
-	IloNumArray secvarub(env, partition.size() * prob.nbSecVars);
-	IloNumArray secconstrbd(env, partition.size() * prob.nbSecRows);
-	setAggregatedBounds(prob, secvarlb, secvarub, secconstrbd);
 	double inner_up = stat.feasobjval;
 	double inner_low = stat.relaxobjval;
 	double levelobj = prob.kappa * inner_low + (1 - prob.kappa) * inner_up;
@@ -531,7 +527,7 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 
 			/* Initializing bd, so subprob_partition can be deleted
 			   is partition.size() and prob.nbSecRows the same thing?*/
-			vector<double> bd(prob.nbScens,0);
+			vector<double> bd(prob.nbSecRows,0);
 			for (int m = 0; m < prob.nbSecRows; ++m)
 			{
 				bd[m] = 0;
@@ -610,9 +606,6 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 				totalobjval += prob.objcoef[j] * xvals[j];
 		}
 	}
-	secvarlb.end();
-	secvarub.end();
-	secconstrbd.end();
 	return totalobjval;
 }
 
@@ -636,9 +629,7 @@ bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
 			{
 				IloNumArray duals(env2);
 				bool feasflag;
-				cout << "1" << endl;
 				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, subProb.calculate_bd(prob, xvals, partition[i].indices[k]));
-				cout << "2" << endl;
 				if (feasflag == 1)
 				{
 					// optimal, so return extreme point solution
@@ -734,7 +725,7 @@ bool Partition::refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
 			{
 				IloNumArray duals(env2);
 				bool feasflag;
-				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, subProb.calculate_bd(prob, xvals, k));
+				double subobjval = subProb.solve(prob, xvals, duals, partition[i].indices[k], feasflag, subProb.calculate_bd(prob, xvals, partition[i].indices[k]));
 				if (feasflag == 1)
 				{
 					// optimal, so return extreme point solution

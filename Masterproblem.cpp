@@ -15,7 +15,7 @@ Masterproblem::Masterproblem() {
 /*
 	Constructor for level master problem
 */
-Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf) {
+Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples) {
 	this->env = env;
 	this->prob = prob;
 	this->stat = stat;
@@ -31,8 +31,8 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 /*
 	Constructor for Quadratic Master Problem.
 */
-  Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, IloEnv lenv)
-	  : Masterproblem::Masterproblem(env, prob, stat, clock, samples, xiterateXf) {
+  Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, IloEnv lenv)
+	  : Masterproblem::Masterproblem(env, prob, stat, clock, samples) {
 	  // Are all initializations for the LP model done?
 	  this->lenv = lenv;
 	  levelmodel = IloModel(lenv);

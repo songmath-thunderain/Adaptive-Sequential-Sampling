@@ -81,12 +81,12 @@ double Subproblem::solve(const TSLP& prob, const IloNumArray& xvals, IloNumArray
 		else
 			 suboptcon[prob.nbSecRows + prob.nbSecVars + j].setLB(-IloInfinity);
 	}
-	 suboptcplex.solve();
+	suboptcplex.solve();
 	double returnval;
 	if ( suboptcplex.getStatus() == IloAlgorithm::Optimal)
 	{
 		returnval =  suboptcplex.getObjValue();
-		 suboptcplex.getDuals(duals,  suboptcon);
+		suboptcplex.getDuals(duals,  suboptcon);
 		feasflag = 1;
 	}
 	else

@@ -56,7 +56,7 @@ void Solution::solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cl
 	bool feas_flag = 1;
 
 	// Construct Master Problem
-	Masterproblem master(env, prob, stat, clock, samples, xiterateXf);
+	Masterproblem master(env, prob, stat, clock, samples);
 	// Add first-stage constraints and objective
 	master.define_lp_model();
 
@@ -207,7 +207,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 
 	// Create and define level and quadratic Master Problems
 	IloEnv lenv;
-	Masterproblem master(env, prob, stat, clock, samples, xiterateXf, lenv);
+	Masterproblem master(env, prob, stat, clock, samples, lenv);
 	master.define_lp_model();
 	master.define_qp_model();
 
@@ -344,9 +344,6 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 
 }
 
-
-
-
 bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option, bool initial, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int& nearOptimal, double remaintime)
 {
 	// option = 0: Just use the relative opt gap, solution mode: 1e-6; option = 1: Use the adaptive sampling type threshold: when opt gap is small relative to the sample error, option = 2: use relative opt gap, evaluation mode: 1e-4
@@ -372,10 +369,11 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 	// Create Partition object
 	IloObjective QPobj;
 	IloEnv meanenv;
-	Masterproblem masterP(env, prob, stat, clock, samples, xiterateXf);
+	Masterproblem masterP(env, prob, stat, clock, samples);
 	Subproblem subP(env, prob);
+	subP.construct_second_opt(env, prob);
+    subP.construct_second_feas(env, prob);
 	Partition part_call(masterP, subP);
-
 	if (initial == 0)
 	{
 		// One of the later iterations
@@ -428,7 +426,6 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 	{
 		feas_flag = 1;
 		stat.iter++;
-		cout << "stat.iter = " << stat.iter << endl;
 		stat.partitionsize += part_call.partition.size();
 		double feasboundscen = 0.0;
 		VectorXf cutcoefscen(prob.nbFirstVars);
@@ -444,7 +441,6 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		{
 			double lasttime = clock.getTime();
 			coarseLB = part_call.coarse_oracle(env, prob, xvals, feasboundscen, cutcoefscen, stat, center_cons, stab_center, cuts, cutrhs, aggrCoarseCut, coarseCutRhs, partcoef, partrhs, starttime, clock, scenObjs, samples, dualInfoCollection, rhsvecs, option);
-
 			stat.solvetime = clock.getTime() - starttime;
 			if (stat.solvetime > remaintime)
 			{
@@ -597,7 +593,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 			}
 		}
 		opt_gap = stat.feasobjval - stat.relaxobjval;
-		//cout << "stat.iter = "<< stat.iter << ", relaxobjval = " << stat.relaxobjval << ", feasobjval = " << stat.feasobjval << ", optimality gap = " << opt_gap << ", samplingError = " << samplingError << endl;
+		cout << "stat.iter = "<< stat.iter << ", relaxobjval = " << stat.relaxobjval << ", feasobjval = " << stat.feasobjval << ", optimality gap = " << opt_gap << ", samplingError = " << samplingError << endl;
 		if (option == 0 && opt_gap * 1.0 / (fabs(stat.feasobjval) + 1e-10) <= 1e-6)
 			loopflag = 0;
 		if (option == 1 && samplingError > opt_gap * 10)
