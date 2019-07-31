@@ -14,10 +14,10 @@ Install Visual Studio 2019
 2. Click on **Empty Project** with tabs C++, Windows, Console and create a Project Name
 3. Now, add all the files above
    - Project >> Add Existing Item >> Select your files
-    - Appropriate files will be sorted into the Header Files and Source Files
+     - Appropriate files will be sorted into the Header Files and Source Files
 4. Next, you have to set some options so that the project knows where to find the CPLEX and Concert include files and CPLEX, Concert, and Eigen libraries.
 
-From the **Project** menu, choose **<Project Name> Properties**.The **<Project Name> Property Pages** dialog box appears.
+   From the **Project** menu, choose **"Project Name" Properties**.The **"Project Name" Property Pages** dialog box appears.
   
    1. In the **Configuration** drop-down list, select **Release**.In the **Platform** drop-down list, select **x64** to create a 64-bit application.
 
@@ -40,8 +40,8 @@ From the **Project** menu, choose **<Project Name> Properties**.The **<Project N
         - cplex1290.lib
         - ilocplex.lib
         - concert.lib
-
-Click **OK** to close the **<Project Name> Property Pages** dialog box.
+        
+   Click **OK** to close the **"Project Name" Property Pages** dialog box.
 
 3. Next, you have to set the default project configuration. From the **Build** menu, select **Configuration Manager…**
    - Select **Release** in the **Active Solution Configuration** drop-down list.
@@ -50,7 +50,7 @@ Click **OK** to close the **<Project Name> Property Pages** dialog box.
 
 ##### To Build/Compile the CPLEX Project
 Finally, to build the project, from the **Build** menu, select **Build Solution**.
-After completion of the compiling and linking process, the target is created, ** <project name>.exe**.
+After completion of the compiling and linking process, the target is created,**"project name".exe**.
  
 ##### To Run the CPLEX Project
 Once a successful build is made, you are ready to run your program:
@@ -58,13 +58,15 @@ Once a successful build is made, you are ready to run your program:
 1. Tools >> Visual Studio Command Prompt
 2. The program consists of 7 command line arguments:
    1. Path to executable file  
-      - The full path of the **<project name>.exe** is typically the second to last line of the **Output Box** after a successful build.
+      - The full path of the **"project name".exe** is typically the second to last line of the **Output Box** after a successful build.
    2. Path to instance  (folder provided above)
    3. Path to a results folder
       - The output of the program is a text file that print the results of the chosen option by the user.
-   4. Option 
-   5. ---
-   6. ---
+   4. Option: 
+      - -1 - extensive, 0 - Benders single, 1 - level, 2 - partly inexact bundle defined by partitions, 3 - sequential, 4 - adaptive, 5 - adaptive + partition, 6 - solve instances with a given # of samples in a retrospective way
+ 
+   5. Suboption: only apply for option = 3, 4, 5
+   6. Alternative use of suboption for option = 6: # of samples used
    7. Random number
 
 E.g. of command line arguments
