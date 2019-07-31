@@ -70,4 +70,5 @@ Once a successful build is made, you are ready to run your program:
    7. Random number
 
 E.g. of command line arguments
+
 "C:\Users\<username>\source\repos\<project name>\x64\Release\<project name.exe" "C:\Users\<username>\source\repos\<project name>\instances\20x20-1-20000-1-clean.dat" "C:\Users\<username>\source\repos\<project name>\results\temp" 0 0 0.5 1e-3 5
