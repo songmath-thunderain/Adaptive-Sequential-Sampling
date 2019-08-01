@@ -170,6 +170,119 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   	//cplex.setParam(IloCplex::EpOpt, 1e-4);
   }
 
+  void Masterproblem::addInitialCuts(IloEnv& env, TSLP& prob, IloNumVarArray thetaArr, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs)
+  {
+	  // Given a collection of dual multipliers, construct an initial master problem (relaxation)
+	  if (dualInfoCollection.size() * samplesForSol.size() < 10000)
+	  {
+		  // Number of constraints is small enough to handle
+		  for (int l = 0; l < dualInfoCollection.size(); ++l)
+		  {
+			  for (int kk = 0; kk < samplesForSol.size(); ++kk)
+			  {
+				  int k = samplesForSol[kk];
+				  // assemble the cutcoef and cutrhs
+				  VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
+				  double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
+				  IloExpr lhs(env);
+				  lhs += thetaArr[kk];
+				  for (int j = 0; j < prob.nbFirstVars; ++j)
+				  {
+					  if (fabs(opt_cut_coef[j]) > 1e-7)
+						  lhs += x[j] * opt_cut_coef[j];
+				  }
+				  IloRange range(env, opt_cut_rhs, lhs, IloInfinity);
+				  model.add(range);
+				  cutcon.add(range);
+				  lhs.end();
+			  }
+		  }
+	  }
+	  else
+	  {
+		  // Too many initial constraints, add them as cutting planes
+		  for (int kk = 0; kk < samplesForSol.size(); ++kk)
+		  {
+			  int k = samplesForSol[kk];
+			  // assemble the cutcoef and cutrhs
+			  double maxval = -1e8;
+			  int maxind = -1;
+			  for (int l = 0; l < dualInfoCollection.size(); ++l)
+			  {
+				  VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
+				  double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
+				  double rhsval = opt_cut_rhs - opt_cut_coef.transpose() * xiterateXf;
+				  if (rhsval > maxval)
+				  {
+					  maxval = rhsval;
+					  maxind = l;
+				  }
+			  }
+			  IloExpr lhs(env);
+			  lhs += thetaArr[kk];
+			  VectorXf init_cut_coef = dualInfoCollection[maxind].coefvec;
+			  for (int j = 0; j < prob.nbFirstVars; ++j)
+			  {
+				  if (fabs(init_cut_coef[j]) > 1e-7)
+					  lhs += x[j] * init_cut_coef[j];
+			  }
+			  IloRange range(env, dualInfoCollection[maxind].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[maxind].rhs, lhs, IloInfinity);
+			  model.add(range);
+			  cutcon.add(range);
+			  lhs.end();
+		  }
+		  bool initialCutFlag = 1;
+		  while (initialCutFlag == 1)
+		  {
+			  initialCutFlag = 0;
+			  cplex.solve();
+			  IloNumArray xvals(env);
+			  IloNumArray thetavals(env);
+			  cplex.getValues(xvals, x);
+			  cplex.getValues(thetavals, thetaArr);
+			  VectorXf tempxiterateXf(prob.nbFirstVars);
+			  for (int j = 0; j < prob.nbFirstVars; ++j)
+				  tempxiterateXf(j) = xvals[j];
+			  for (int kk = 0; kk < samplesForSol.size(); ++kk)
+			  {
+				  int k = samplesForSol[kk];
+				  // assemble the cutcoef and cutrhs
+				  double maxval = -1e8;
+				  int maxind = -1;
+				  for (int l = 0; l < dualInfoCollection.size(); ++l)
+				  {
+					  VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
+					  double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
+					  double rhsval = opt_cut_rhs - opt_cut_coef.transpose() * tempxiterateXf - thetavals[kk];
+					  if (rhsval > maxval)
+					  {
+						  maxval = rhsval;
+						  maxind = l;
+					  }
+				  }
+				  if (maxval > max(1e-5, abs(thetavals[kk])) * 1e-5)
+				  {
+					  initialCutFlag = 1;
+					  IloExpr lhs(env);
+					  lhs += thetaArr[kk];
+					  VectorXf init_cut_coef = dualInfoCollection[maxind].coefvec;
+					  for (int j = 0; j < prob.nbFirstVars; ++j)
+					  {
+						  if (fabs(init_cut_coef[j]) > 1e-7)
+							  lhs += x[j] * init_cut_coef[j];
+					  }
+					  IloRange range(env, dualInfoCollection[maxind].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[maxind].rhs, lhs, IloInfinity);
+					  model.add(range);
+					  cutcon.add(range);
+					  lhs.end();
+				  }
+			  }
+			  xvals.end();
+			  thetavals.end();
+		  }
+	  }
+  }
+
   /*
 	Getter for cplex variable.
   */

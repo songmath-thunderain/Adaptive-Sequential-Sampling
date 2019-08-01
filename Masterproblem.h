@@ -4,6 +4,7 @@
 #ifndef MASTERPROBLEM_H
 #define MASTERPROBLEM_H
 
+#include <ilcplex/ilocplex.h>
 #include "structs.h"
 //#include "adaptiveSamples.h"
 using Eigen::VectorXf;
@@ -37,6 +38,7 @@ public:
 	void define_lp_model();
 	void define_qp_model();
 	void setup_bundle_QP(const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons);
+	void addInitialCuts(IloEnv& env, TSLP& prob, IloNumVarArray thetaArr, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs);
 	IloCplex& getCplex();
 	IloNumVarArray& getX();
 	IloNumVar& getTheta();

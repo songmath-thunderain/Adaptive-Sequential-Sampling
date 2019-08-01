@@ -970,42 +970,17 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 				samplesForSol[j] = rand() % prob.nbScens;
 		}
 		/* Construct Master problem in each iteration */
-		IloModel mastermodel(env);
-		IloNumVarArray x(env, prob.firstvarlb, prob.firstvarub);
-		IloNumVarArray theta(env, nbIterSolScens, 0, IloInfinity);
-		// Adding first-stage constraints
-		for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
-		{
-			IloExpr lhs(env);
-			for (int j = 0; j < prob.firstconstrind[i].getSize(); ++j)
-				lhs += x[prob.firstconstrind[i][j]] * prob.firstconstrcoef[i][j];
-			IloRange range(env, prob.firstconstrlb[i], lhs, prob.firstconstrub[i]);
-			mastermodel.add(range);
-			lhs.end();
-		}
-		// Adding objective
-		IloExpr obj(env);
-		for (int i = 0; i < prob.nbFirstVars; ++i)
-			obj += x[i] * prob.objcoef[i];
-		for (int k = 0; k < nbIterSolScens; ++k)
-			obj += theta[k] * (1.0 / nbIterSolScens);
-		mastermodel.add(IloMinimize(env, obj));
-		obj.end();
-
-		IloCplex mastercplex(mastermodel);
-		mastercplex.setParam(IloCplex::TiLim, 10800);
-		mastercplex.setParam(IloCplex::Threads, 1);
-		// Dual simplex
-		mastercplex.setParam(IloCplex::RootAlg, 2);
-		mastercplex.setParam(IloCplex::BarDisplay, 0);
-		mastercplex.setParam(IloCplex::SimDisplay, 0);
-		mastercplex.setOut(env.getNullStream());
-		mastercplex.setParam(IloCplex::EpOpt, 1e-6);
+		//Masterproblem master(env, prob, stat, clock, samplesForSol);
+		IloEnv lenv;
+		Masterproblem master(env, prob, stat, clock, samplesForSol, lenv);
+		IloNumVarArray thetaArr(env, nbIterSolScens, 0, IloInfinity);
+		master.define_lp_model();
+		master.define_qp_model();
 		/* Finish construct Master problem in each iteration */
 
 		// Adding all cutting planes from a collection of duals as constraints
 		IloRangeArray cutcon(env);
-		addInitialCuts(env, prob, mastermodel, x, theta, mastercplex, cutcon, samplesForSol, dualInfoCollection, xiterateXf, rhsvecs);
+		master.addInitialCuts(env, prob, thetaArr, cutcon, samplesForSol, dualInfoCollection, xiterateXf, rhsvecs);
 		bool newSampleFlag = 0;
 		int innerIter = 0;
 		double feasobjval = 1e10;
@@ -1015,11 +990,11 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 			// After obtaining samples, solve the sampled problem, obtain xval, relaxation bound for the sampled problem
 			innerIter++;
 			if (innerIter > 1 || dualInfoCollection.size() * samplesForSol.size() < 10000)
-				mastercplex.solve();
-			relaxobjval = mastercplex.getObjValue();
+				master.getCplex().solve();
+			relaxobjval = master.getCplex().getObjValue();
 			cout << "innerIter = " << innerIter << ", relaxobjval = " << relaxobjval << ", feasobjval = " << feasobjval << endl;;
 			IloNumArray xvals(env);
-			mastercplex.getValues(xvals, x);
+			master.getCplex().getValues(xvals, master.getX());
 			for (int j = 0; j < prob.nbFirstVars; ++j)
 				xiterateXf(j) = xvals[j];
 			// solve the sampled subproblems, generate cuts, and then get an upper bound for the sampled problem
@@ -1028,7 +1003,7 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 			bool cutflag = 0;
 			double sampleMean = 0;
 			IloNumArray scenthetaval(env);
-			mastercplex.getValues(scenthetaval, theta);
+			master.getCplex().getValues(scenthetaval, thetaArr);
 			double tempsubprobtime = clock.getTime();
 			bool feas_flag = 1;
 			for (int kk = 0; kk < nbIterSolScens; ++kk)
@@ -1057,13 +1032,13 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 						double rhssub = subobjval + sum_xvals;
 						// Need to add cuts here!
 						IloExpr lhs(env);
-						lhs += theta[kk];
+						lhs += thetaArr[kk];
 						for (int j = 0; j < prob.nbFirstVars; ++j)
 						{
 							if (fabs(opt_cut_coef[j]) > 1e-7)
-								lhs += x[j] * opt_cut_coef[j];
+								lhs += master.getX()[j] * opt_cut_coef[j];
 						}
-						mastermodel.add(lhs >= rhssub);
+						master.getModel().add(lhs >= rhssub);
 						lhs.end();
 						if (addToCollection(dualvec, dualInfoCollection) == true)
 						{
@@ -1088,11 +1063,11 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 					for (int j = 0; j < prob.nbFirstVars; ++j)
 					{
 						if (fabs(feas_cut_coef[j]) > 1e-7)
-							lhssub += x[j] * feas_cut_coef[j];
+							lhssub += master.getX()[j] * feas_cut_coef[j];
 					}
 					double rhssub = sum_xvals + subobjval;
 					stat.num_feas_cuts++;
-					mastermodel.add(lhssub >= rhssub);
+					master.getModel().add(lhssub >= rhssub);
 					lhssub.end();
 					// adding as first-stage constraints to be used in the future
 					IloIntArray tempInd(env);
@@ -1306,10 +1281,6 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 		stat.iter += innerIter;
 		cutcon.endElements();
 		cutcon.end();
-		mastercplex.end();
-		mastermodel.end();
-		x.end();
-		theta.end();
 	}
 
 }
@@ -1416,119 +1387,6 @@ void Solution::sequentialSetup(Sequence& seq, int option)
 	{
 		// B&P-L: SSP
 		seq.sampleSizes[0] = initSample;
-	}
-}
-
-void Solution::addInitialCuts(IloEnv& env, TSLP& prob, IloModel& mastermodel, const IloNumVarArray& x, const IloNumVarArray& theta, IloCplex& mastercplex, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs)
-{
-	// Given a collection of dual multipliers, construct an initial master problem (relaxation)
-	if (dualInfoCollection.size() * samplesForSol.size() < 10000)
-	{
-		// Number of constraints is small enough to handle
-		for (int l = 0; l < dualInfoCollection.size(); ++l)
-		{
-			for (int kk = 0; kk < samplesForSol.size(); ++kk)
-			{
-				int k = samplesForSol[kk];
-				// assemble the cutcoef and cutrhs
-				VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
-				double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
-				IloExpr lhs(env);
-				lhs += theta[kk];
-				for (int j = 0; j < prob.nbFirstVars; ++j)
-				{
-					if (fabs(opt_cut_coef[j]) > 1e-7)
-						lhs += x[j] * opt_cut_coef[j];
-				}
-				IloRange range(env, opt_cut_rhs, lhs, IloInfinity);
-				mastermodel.add(range);
-				cutcon.add(range);
-				lhs.end();
-			}
-		}
-	}
-	else
-	{
-		// Too many initial constraints, add them as cutting planes
-		for (int kk = 0; kk < samplesForSol.size(); ++kk)
-		{
-			int k = samplesForSol[kk];
-			// assemble the cutcoef and cutrhs
-			double maxval = -1e8;
-			int maxind = -1;
-			for (int l = 0; l < dualInfoCollection.size(); ++l)
-			{
-				VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
-				double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
-				double rhsval = opt_cut_rhs - opt_cut_coef.transpose() * xiterateXf;
-				if (rhsval > maxval)
-				{
-					maxval = rhsval;
-					maxind = l;
-				}
-			}
-			IloExpr lhs(env);
-			lhs += theta[kk];
-			VectorXf init_cut_coef = dualInfoCollection[maxind].coefvec;
-			for (int j = 0; j < prob.nbFirstVars; ++j)
-			{
-				if (fabs(init_cut_coef[j]) > 1e-7)
-					lhs += x[j] * init_cut_coef[j];
-			}
-			IloRange range(env, dualInfoCollection[maxind].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[maxind].rhs, lhs, IloInfinity);
-			mastermodel.add(range);
-			cutcon.add(range);
-			lhs.end();
-		}
-		bool initialCutFlag = 1;
-		while (initialCutFlag == 1)
-		{
-			initialCutFlag = 0;
-			mastercplex.solve();
-			IloNumArray xvals(env);
-			IloNumArray thetavals(env);
-			mastercplex.getValues(xvals, x);
-			mastercplex.getValues(thetavals, theta);
-			VectorXf tempxiterateXf(prob.nbFirstVars);
-			for (int j = 0; j < prob.nbFirstVars; ++j)
-				tempxiterateXf(j) = xvals[j];
-			for (int kk = 0; kk < samplesForSol.size(); ++kk)
-			{
-				int k = samplesForSol[kk];
-				// assemble the cutcoef and cutrhs
-				double maxval = -1e8;
-				int maxind = -1;
-				for (int l = 0; l < dualInfoCollection.size(); ++l)
-				{
-					VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
-					double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
-					double rhsval = opt_cut_rhs - opt_cut_coef.transpose() * tempxiterateXf - thetavals[kk];
-					if (rhsval > maxval)
-					{
-						maxval = rhsval;
-						maxind = l;
-					}
-				}
-				if (maxval > max(1e-5, abs(thetavals[kk])) * 1e-5)
-				{
-					initialCutFlag = 1;
-					IloExpr lhs(env);
-					lhs += theta[kk];
-					VectorXf init_cut_coef = dualInfoCollection[maxind].coefvec;
-					for (int j = 0; j < prob.nbFirstVars; ++j)
-					{
-						if (fabs(init_cut_coef[j]) > 1e-7)
-							lhs += x[j] * init_cut_coef[j];
-					}
-					IloRange range(env, dualInfoCollection[maxind].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[maxind].rhs, lhs, IloInfinity);
-					mastermodel.add(range);
-					cutcon.add(range);
-					lhs.end();
-				}
-			}
-			xvals.end();
-			thetavals.end();
-		}
 	}
 }
 
