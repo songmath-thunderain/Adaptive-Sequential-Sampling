@@ -1093,6 +1093,7 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 			bool feas_flag = 1;
 			for (int kk = 0; kk < nbIterSolScens; ++kk)
 			{
+				cout << "kk = " << kk << endl;
 				int k = samplesForSol[kk];
 				IloNumArray duals(env);
 				bool feasflag;
