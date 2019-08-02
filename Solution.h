@@ -9,7 +9,7 @@
 #include <ilcplex/ilocplex.h>
 #include <vector>
 #include <set>
-#include <Eigen>
+#include <Eigen/Dense>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -64,6 +64,8 @@ public:
 	void sequentialSetup(Sequence& seq, int option);
 
 	void finalEval(IloEnv& env, TSLP& prob, const VectorXf& xiterateXf, STAT& stat);
+
+	void solve_extended(IloEnv& env, const TSLP& prob, STAT& stat, IloTimer& clock);
 };
 
 #endif

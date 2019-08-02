@@ -1,6 +1,6 @@
 #include "Solution.h"
 #include "Subproblem.h"
-#include "Extended.h"
+//#include "Extended.h"
 
 using namespace std;
 
@@ -65,7 +65,6 @@ int main(int argc, char** argv)
 
 
 	ifstream file(filename);
-	cout << filename << endl;
 	if (!file)
 	{
 		cerr << "ERROR: could not open file '" << filename
@@ -135,9 +134,7 @@ int main(int argc, char** argv)
 	if (option == -1)
 	{
 		// extended formulation
-
-		Extended extend_form;
-		extend_form.solve_extended(env, prob, stat, clock);
+		solution_call.solve_extended(env, prob, stat, clock);
 
 	}
 	if (option == 0)
