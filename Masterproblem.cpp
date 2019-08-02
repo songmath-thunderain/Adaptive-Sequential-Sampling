@@ -25,6 +25,7 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 	model = IloModel(env);
 	x = IloNumVarArray(env, prob.firstvarlb, prob.firstvarub);
 	theta = IloNumVar(env, 0, IloInfinity);
+	IloNumVarArray theta_multi(env, samples.size(), 0, IloInfinity);
 	cplex = IloCplex(model);
 }
 
@@ -66,24 +67,33 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   
   /*
     Set initial constraints for level master problem.
+	option == 0 is for singlecut, only a single theta is used
+	option == 1 is for multicut, an array of theta values is used
   */
-  void Masterproblem::define_lp_model() {
-	// Adding first-stage constraints
-    for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
-  	{
-		IloExpr lhs(env);
-		for (int j = 0; j < prob.firstconstrind[i].getSize(); ++j)
-			lhs += x[prob.firstconstrind[i][j]] * prob.firstconstrcoef[i][j];
-		IloRange range(env, prob.firstconstrlb[i], lhs, prob.firstconstrub[i]);
-		model.add(range);
-		lhs.end();
-  	}
-	// Adding objective
-	IloExpr obj(env);
-	for (int i = 0; i < prob.nbFirstVars; ++i)
-		obj += x[i] * prob.objcoef[i];
-	// single cut
-	obj += theta;
+  void Masterproblem::define_lp_model(int option) {
+	  // Adding first-stage constraints
+	  for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
+	  {
+		  IloExpr lhs(env);
+		  for (int j = 0; j < prob.firstconstrind[i].getSize(); ++j)
+			  lhs += x[prob.firstconstrind[i][j]] * prob.firstconstrcoef[i][j];
+		  IloRange range(env, prob.firstconstrlb[i], lhs, prob.firstconstrub[i]);
+		  model.add(range);
+		  lhs.end();
+	  }
+	  // Adding objective
+	  IloExpr obj(env);
+	  for (int i = 0; i < prob.nbFirstVars; ++i)
+		  obj += x[i] * prob.objcoef[i];
+	  // single cut
+	  if (option == 0) {
+		obj += theta;
+	  }
+	  if (option == 1) {
+		  for (int j = 0; j < theta_multi.getSize(); j++) {
+			  obj += theta_multi[j];
+		  }
+	  }
 	model.add(IloMinimize(env, obj));
 	obj.end();
 	cplex = IloCplex(model);

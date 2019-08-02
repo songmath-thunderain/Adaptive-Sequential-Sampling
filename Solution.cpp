@@ -58,7 +58,7 @@ void Solution::solve_singlecut(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cl
 	// Construct Master Problem
 	Masterproblem master(env, prob, stat, clock, samples);
 	// Add first-stage constraints and objective
-	master.define_lp_model();
+	master.define_lp_model(0);
 
 	// We initiate an LP model for the second-stage problem, and everytime (iteration/sceanrio) we just update the rhs and solve: constraint coefficients are the same across all scenarios
 	// we initiate both optimization model and feasibility model
@@ -208,7 +208,7 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 	// Create and define level and quadratic Master Problems
 	IloEnv lenv;
 	Masterproblem master(env, prob, stat, clock, samples, lenv);
-	master.define_lp_model();
+	master.define_lp_model(0);
 	master.define_qp_model();
 
 	// We initiate an LP model for the second-stage problem, and everytime (iteration/sceanrio) we just update the rhs and solve: constraint coefficients are the same across all scenarios
@@ -974,7 +974,7 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 		IloEnv lenv;
 		Masterproblem master(env, prob, stat, clock, samplesForSol, lenv);
 		IloNumVarArray thetaArr(env, nbIterSolScens, 0, IloInfinity);
-		master.define_lp_model();
+		master.define_lp_model(1);
 		master.define_qp_model();
 		/* Finish construct Master problem in each iteration */
 
