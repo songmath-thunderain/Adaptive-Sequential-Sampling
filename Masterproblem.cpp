@@ -25,7 +25,7 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 	model = IloModel(env);
 	x = IloNumVarArray(env, prob.firstvarlb, prob.firstvarub);
 	theta = IloNumVar(env, 0, IloInfinity);
-	IloNumVarArray theta_multi(env, samples.size(), 0, IloInfinity);
+	theta_multi = IloNumVarArray(env, samples.size(), 0, IloInfinity);
 	cplex = IloCplex(model);
 }
 
@@ -90,21 +90,21 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 		obj += theta;
 	  }
 	  if (option == 1) {
-		  for (int j = 0; j < theta_multi.getSize(); j++) {
-			  obj += theta_multi[j];
+		  int sampleSize = theta_multi.getSize();
+		  for (int j = 0; j < sampleSize; j++) {
+			  obj += theta_multi[j]* (1.0 / sampleSize);
 		  }
 	  }
-	model.add(IloMinimize(env, obj));
-	obj.end();
-	cplex = IloCplex(model);
-	cplex.setParam(IloCplex::TiLim, 10800);
-	cplex.setParam(IloCplex::Threads, 1);
-	// Barrier
-	cplex.setParam(IloCplex::RootAlg, 2); // Only for lp definition
-	cplex.setParam(IloCplex::BarDisplay, 0);
-	cplex.setParam(IloCplex::SimDisplay, 0);
-	cplex.setOut(env.getNullStream());
-	//cplex.setParam(IloCplex::EpOpt, 1e-4);
+	  model.add(IloMinimize(env, obj));
+	  obj.end();
+	  cplex = IloCplex(model);
+	  cplex.setParam(IloCplex::TiLim, 10800);
+	  cplex.setParam(IloCplex::Threads, 1);
+	  // Barrier
+	  cplex.setParam(IloCplex::RootAlg, 2); // Only for lp definition
+	  cplex.setParam(IloCplex::BarDisplay, 0);
+	  cplex.setParam(IloCplex::SimDisplay, 0);
+	  cplex.setOut(env.getNullStream());
   }
 
   /*
@@ -180,7 +180,7 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   	//cplex.setParam(IloCplex::EpOpt, 1e-4);
   }
 
-  void Masterproblem::addInitialCuts(IloEnv& env, TSLP& prob, IloNumVarArray thetaArr, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs)
+  void Masterproblem::addInitialCuts(IloEnv& env, TSLP& prob, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs)
   {
 	  // Given a collection of dual multipliers, construct an initial master problem (relaxation)
 	  if (dualInfoCollection.size() * samplesForSol.size() < 10000)
@@ -195,7 +195,7 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 				  VectorXf opt_cut_coef = dualInfoCollection[l].coefvec;
 				  double opt_cut_rhs = dualInfoCollection[l].dualvec.segment(0, prob.nbSecRows).transpose() * rhsvecs[k] + dualInfoCollection[l].rhs;
 				  IloExpr lhs(env);
-				  lhs += thetaArr[kk];
+				  lhs += theta_multi[kk];
 				  for (int j = 0; j < prob.nbFirstVars; ++j)
 				  {
 					  if (fabs(opt_cut_coef[j]) > 1e-7)
@@ -229,7 +229,7 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 				  }
 			  }
 			  IloExpr lhs(env);
-			  lhs += thetaArr[kk];
+			  lhs += theta_multi[kk];
 			  VectorXf init_cut_coef = dualInfoCollection[maxind].coefvec;
 			  for (int j = 0; j < prob.nbFirstVars; ++j)
 			  {
@@ -249,7 +249,7 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 			  IloNumArray xvals(env);
 			  IloNumArray thetavals(env);
 			  cplex.getValues(xvals, x);
-			  cplex.getValues(thetavals, thetaArr);
+			  cplex.getValues(thetavals, theta_multi);
 			  VectorXf tempxiterateXf(prob.nbFirstVars);
 			  for (int j = 0; j < prob.nbFirstVars; ++j)
 				  tempxiterateXf(j) = xvals[j];
@@ -274,7 +274,7 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
 				  {
 					  initialCutFlag = 1;
 					  IloExpr lhs(env);
-					  lhs += thetaArr[kk];
+					  lhs += theta_multi[kk];
 					  VectorXf init_cut_coef = dualInfoCollection[maxind].coefvec;
 					  for (int j = 0; j < prob.nbFirstVars; ++j)
 					  {
@@ -313,6 +313,14 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   IloNumVar& Masterproblem::getTheta() {
 	  return theta;
   }
+
+  /*
+  Getter for thetamulti variable.
+  */
+  IloNumVarArray& Masterproblem::getThetaMulti() {
+	  return theta_multi;
+  }
+
 
   /*
   Getter for model variable.

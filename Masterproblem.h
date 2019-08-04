@@ -39,10 +39,11 @@ public:
 	void define_lp_model(int option);
 	void define_qp_model();
 	void setup_bundle_QP(const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons);
-	void addInitialCuts(IloEnv& env, TSLP& prob, IloNumVarArray thetaArr, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs);
+	void addInitialCuts(IloEnv& env, TSLP& prob, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs);
 	IloCplex& getCplex();
 	IloNumVarArray& getX();
 	IloNumVar& getTheta();
+	IloNumVarArray& getThetaMulti();
 	IloModel& getModel();
 	IloNumVar& getLtheta();
 	IloNumVarArray& getLx();

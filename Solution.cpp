@@ -1055,17 +1055,15 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 				samplesForSol[j] = rand() % prob.nbScens;
 		}
 		/* Construct Master problem in each iteration */
-		//Masterproblem master(env, prob, stat, clock, samplesForSol);
 		IloEnv lenv;
 		Masterproblem master(env, prob, stat, clock, samplesForSol, lenv);
-		IloNumVarArray thetaArr(env, nbIterSolScens, 0, IloInfinity);
 		master.define_lp_model(1);
 		master.define_qp_model();
 		/* Finish construct Master problem in each iteration */
 
 		// Adding all cutting planes from a collection of duals as constraints
 		IloRangeArray cutcon(env);
-		master.addInitialCuts(env, prob, thetaArr, cutcon, samplesForSol, dualInfoCollection, xiterateXf, rhsvecs);
+		master.addInitialCuts(env, prob, cutcon, samplesForSol, dualInfoCollection, xiterateXf, rhsvecs);
 		bool newSampleFlag = 0;
 		int innerIter = 0;
 		double feasobjval = 1e10;
@@ -1088,12 +1086,11 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 			bool cutflag = 0;
 			double sampleMean = 0;
 			IloNumArray scenthetaval(env);
-			master.getCplex().getValues(scenthetaval, thetaArr);
+			master.getCplex().getValues(scenthetaval, master.getThetaMulti());
 			double tempsubprobtime = clock.getTime();
 			bool feas_flag = 1;
 			for (int kk = 0; kk < nbIterSolScens; ++kk)
 			{
-				cout << "kk = " << kk << endl;
 				int k = samplesForSol[kk];
 				IloNumArray duals(env);
 				bool feasflag;
@@ -1118,7 +1115,7 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 						double rhssub = subobjval + sum_xvals;
 						// Need to add cuts here!
 						IloExpr lhs(env);
-						lhs += thetaArr[kk];
+						lhs += master.getThetaMulti()[kk];
 						for (int j = 0; j < prob.nbFirstVars; ++j)
 						{
 							if (fabs(opt_cut_coef[j]) > 1e-7)
@@ -1246,6 +1243,7 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 					for (int j = 0; j < nbIterEvalScens; ++j)
 						samplesForEval[j] = rand() % prob.nbScens;
 					STAT tempstat;
+					tempstat.iter = 1;
 					tempstat.relaxobjval = -1e10;
 					tempstat.feasobjval = 1e10;
 					VectorXf xiterateXf2(prob.nbFirstVars);
@@ -1376,6 +1374,7 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 void Solution::finalEval(IloEnv& env, TSLP& prob, const VectorXf& xiterateXf, STAT& stat)
 {
 	Subproblem subprob(env, prob);
+	subprob.construct_second_opt(env, prob);
 	IloNumArray finalxvals(env);
 	double finalObj = 0;
 	for (int j = 0; j < prob.nbFirstVars; ++j)
@@ -1406,7 +1405,8 @@ void Solution::finalEval(IloEnv& env, TSLP& prob, const VectorXf& xiterateXf, ST
 
 void Solution::SRP(IloEnv& env, TSLP& prob, IloTimer& clock, int nbIterEvalScens, const vector<int>& samplesForEval, double& G, double& S, const IloNumArray& xvals, const IloNumArray& xvals2, vector<double>& scenObjEval)
 {
-	Subproblem subprob;
+	Subproblem subprob(env, prob);
+	subprob.construct_second_opt(env, prob);
 	vector<double> scenObj2(nbIterEvalScens);
 	for (int k = 0; k < nbIterEvalScens; ++k)
 	{
