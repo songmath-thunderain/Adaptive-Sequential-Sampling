@@ -12,8 +12,7 @@ Requirements:
 
 ## Acknowledgement
 
-This code was originally developed by [Dr. Yongjia Song](https://sites.google.com/site/yongjiasongshom)
-. It has been reorganized during Summer 2019 with the help from Alicia Devasia and Casey Hird, two undergraduate students from Clemson University, supported by the Research Experience for Undergraduate program of the National Science Foundation. 
+This code was originally developed by [Yongjia Song](https://sites.google.com/site/yongjiasongshom). It was then reorganized during Summer 2019 by Alicia Devasia and Casey Hird, two undergraduate students from Clemson University, who were supported by the Research Experience for Undergraduate program of the National Science Foundation. 
 
 ## How to Run CPLEX on Windows
 
