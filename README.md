@@ -1,4 +1,10 @@
 # Adaptive-Sequential-Sampling
+
+Reference: 
+1. W. van Ackooij, W. de Oliveira, and Y. Song, “Adaptive Partition-based Level Decomposition Methods for Solving Two-stage Stochastic Programs with Fixed Recourse”, INFORMS Journal on Computing 30(1), 2018
+2. R. Pasupathy and Y. Song, "An Adaptive Sequential Sample Average Approximation Framework for Solving Two-stage Stochastic Programs", available on Optimization Online, 2019.
+
+
 Requirements: 
 1. Commercial optimization software CPLEX  
 2. Open-source numerical computing package Eigen
