@@ -3,7 +3,7 @@
 This code implements the adaptive sequential sample average approximation framework for solving two-stage stochastic programs. Several algorithms for solving individual SAA problems are implemented, including the adaptive partition-based level decomposition method.
 
 Reference: 
-1. W. van Ackooij, W. de Oliveira, and Y. Song, “Adaptive Partition-based Level Decomposition Methods for Solving Two-stage Stochastic Programs with Fixed Recourse”, INFORMS Journal on Computing 30(1), 2018
+1. W. van Ackooij, W. de Oliveira, and Y. Song, “Adaptive Partition-based Level Decomposition Methods for Solving Two-stage Stochastic Programs with Fixed Recourse”, INFORMS Journal on Computing 30(1), 2018.
 2. R. Pasupathy and Y. Song, "An Adaptive Sequential Sample Average Approximation Framework for Solving Two-stage Stochastic Programs", available on Optimization Online, 2019.
 
 Requirements: 
@@ -12,7 +12,8 @@ Requirements:
 
 ## Acknowledgement
 
-This code was originally developed by Dr. Yongjia Song. It has been reorganized during Summer 2019 with the help from Alicia Devasia and Casey Hird, two undergraduate students from Clemson University, supported by the Research Experience for Undergraduate program of the National Science Foundation. 
+This code was originally developed by [Dr. Yongjia Song](https://sites.google.com/site/yongjiasongshom)
+. It has been reorganized during Summer 2019 with the help from Alicia Devasia and Casey Hird, two undergraduate students from Clemson University, supported by the Research Experience for Undergraduate program of the National Science Foundation. 
 
 ## How to Run CPLEX on Windows
 
