@@ -5,7 +5,6 @@
 
 Solution::Solution() {
 
-
 }
 
 Solution::~Solution() {
@@ -352,7 +351,6 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 						llhsaggr += master.getLx()[j] * opt_cut_coef[j] * 1.0 / nbScens;
 					}
 				}
-
 			}
 			else
 			{
@@ -419,14 +417,10 @@ void Solution::solve_level(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock,
 			xiterate[j] = lxval[j];
 		lxval.end();
 		env2.end();
-		//cout << "relaxobjval = " << stat.relaxobjval << endl;
-		//cout << "feasobjval = " << stat.feasobjval << endl;
-		//cout << "optimality gap = " << (stat.feasobjval-stat.relaxobjval)*1.0/(fabs(stat.feasobjval)+1e-10) << endl;
 		stat.solvetime = clock.getTime() - starttime;
 		if (stat.solvetime > 10800)
 			break;
 	}
-
 }
 
 bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, const vector<int>& samples, VectorXf& xiterateXf, int option, bool initial, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int& nearOptimal, double remaintime)
@@ -458,21 +452,23 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 	Subproblem subP(env, prob);
 	subP.construct_second_opt(env, prob);
 	subP.construct_second_feas(env, prob);
-	Partition part_call(masterP, subP);
+	Partition part_call;
 	if (initial == 0)
 	{
 		// One of the later iterations
 		for (int j = 0; j < prob.nbFirstVars; ++j)
 			stab_center[j] = xiterateXf(j);
 		// We will also do some warm starts here using recorded dual information from dualCollection
-		fmean = part_call.solve_warmstart(meanenv, prob, samples, stab_center, dualInfoCollection, cutcoefs, cutrhs, rhsvecs, xvals, clock, stat);
-
+		STAT tempstat;
+		IloTimer tempclock(meanenv);
+		Masterproblem initialMasterP(meanenv, prob, tempstat, tempclock, samples);
+		fmean = part_call.solve_warmstart(meanenv, prob, samples, stab_center, dualInfoCollection, cutcoefs, cutrhs, rhsvecs, xvals, initialMasterP, clock, stat);
 		// Add cuts
 		for (int l = 0; l < cutcoefs.size(); ++l)
 		{
 			IloExpr lhs(env);
 			for (int j = 0; j < prob.nbFirstVars; ++j)
-				lhs += part_call.masterProb.getX()[j] * (prob.objcoef[j] - cutcoefs[l][j] * 1.0 / samples.size());
+				lhs += masterP.getX()[j] * (prob.objcoef[j] - cutcoefs[l][j] * 1.0 / samples.size());
 			// Just tempararily set an UB, will be updated in the inner loop any way
 			IloRange range(env, -IloInfinity, lhs, 0);
 			cuts.add(range);
@@ -500,8 +496,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 	stat.warmstarttime = clock.getTime() - warmtemp;
 	meanenv.end();
 	IloRangeArray center_cons(env);
-	//setup_bundle_QP(env, prob, part_call.masterProb.getCplex(), part_call.masterProb.getModel(), part_call.masterProb.getX(), stab_center, QPobj, cuts, center_cons);
-	part_call.masterProb.setup_bundle_QP(stab_center, QPobj, cuts, center_cons);
+	masterP.setup_bundle_QP(stab_center, QPobj, cuts, center_cons);
 	bool firstloop = 1;
 	double descent_target;
 	double opt_gap;
@@ -525,7 +520,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		else
 		{
 			double lasttime = clock.getTime();
-			coarseLB = part_call.coarse_oracle(env, prob, xvals, feasboundscen, cutcoefscen, stat, center_cons, stab_center, cuts, cutrhs, aggrCoarseCut, coarseCutRhs, partcoef, partrhs, starttime, clock, scenObjs, samples, dualInfoCollection, rhsvecs, option);
+			coarseLB = part_call.coarse_oracle(env, prob, xvals, feasboundscen, cutcoefscen, stat, center_cons, stab_center, cuts, cutrhs, aggrCoarseCut, coarseCutRhs, partcoef, partrhs, starttime, clock, scenObjs, samples, dualInfoCollection, rhsvecs, option, masterP, subP);
 			stat.solvetime = clock.getTime() - starttime;
 			if (stat.solvetime > remaintime)
 			{
@@ -560,18 +555,18 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 				{
 					if (fabs(aggrCoarseCut[j]) > 1e-7)
 					{
-						lhs += part_call.masterProb.getX()[j] * (prob.objcoef[j] - aggrCoarseCut[j] * 1.0 / samples.size());
+						lhs += masterP.getX()[j] * (prob.objcoef[j] - aggrCoarseCut[j] * 1.0 / samples.size());
 						tempcut[j] = aggrCoarseCut[j];
 					}
 					else
 					{
-						lhs += part_call.masterProb.getX()[j] * prob.objcoef[j];
+						lhs += masterP.getX()[j] * prob.objcoef[j];
 						tempcut[j] = 0;
 					}
 				}
 				// Just tempararily set an UB, will be updated in the inner loop any way
 				IloRange range(env, -IloInfinity, lhs, -coarseCutRhs);
-				part_call.masterProb.getModel().add(range);
+				masterP.getModel().add(range);
 				cuts.add(range);
 				cutcoefs.push_back(tempcut);
 				cutrhs.push_back(coarseCutRhs);
@@ -587,13 +582,13 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 		if (firstloop == 1)
 		{
 			// just solve all the scenario subproblems
-			feas_flag = part_call.refine_full(env, env2, prob, xvals, feasboundscen, cutcoefscen, new_partition, stat, clock, scenObjs, dualInfoCollection, rhsvecs, option);
+			feas_flag = part_call.refine_full(env, env2, prob, xvals, feasboundscen, cutcoefscen, new_partition, stat, clock, scenObjs, dualInfoCollection, rhsvecs, option, masterP, subP);
 			fullupdateflag = 1;
 		}
 		else
 		{
 			// Solve scenario subproblems component by component, stop when hopeless to achieve descent target
-			feas_flag = part_call.refine_part(env, env2, prob, xvals, new_partition, stat, clock, partcoef, partrhs, descent_target, fullupdateflag, coarseLB, aggrCoarseCut, scenObjs, samples, dualInfoCollection, rhsvecs, option);
+			feas_flag = part_call.refine_part(env, env2, prob, xvals, new_partition, stat, clock, partcoef, partrhs, descent_target, fullupdateflag, coarseLB, aggrCoarseCut, scenObjs, samples, dualInfoCollection, rhsvecs, option, masterP, subP);
 		}
 		if (feas_flag == 1 && fullupdateflag == 1)
 		{
@@ -654,7 +649,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 							else
 							{
 								// remove the cut
-								part_call.masterProb.getModel().remove(cuts[j]);
+								masterP.getModel().remove(cuts[j]);
 								cuts[j].end();
 							}
 						}
@@ -703,7 +698,7 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 					{
 						if (fabs(cutcoefscen[j]) > 1e-7)
 						{
-							lhs += part_call.masterProb.getX()[j] * (-cutcoefscen[j] * 1.0 / samples.size() + prob.objcoef[j]);
+							lhs += masterP.getX()[j] * (-cutcoefscen[j] * 1.0 / samples.size() + prob.objcoef[j]);
 							lhsval += xvals[j] * cutcoefscen[j];
 							tempcut[j] = cutcoefscen[j];
 						}
@@ -711,13 +706,13 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 						{
 							tempcut[j] = 0;
 							if (fabs(prob.objcoef[j]) > 1e-7)
-								lhs += part_call.masterProb.getX()[j] * prob.objcoef[j];
+								lhs += masterP.getX()[j] * prob.objcoef[j];
 						}
 					}
 					double fineCutRhs = (feasboundscen + lhsval) * 1.0 / samples.size();
 					// Just tempararily set an UB, will be updated in the inner loop any way
 					IloRange range(env, -IloInfinity, lhs, -fineCutRhs);
-					part_call.masterProb.getModel().add(range);
+					masterP.getModel().add(range);
 					cuts.add(range);
 					cutcoefs.push_back(tempcut);
 					cutrhs.push_back(fineCutRhs);
@@ -736,21 +731,21 @@ bool Solution::solve_partly_inexact_bundle(IloEnv& env, TSLP& prob, STAT& stat, 
 					{
 						if (fabs(aggrCoarseCut[j]) > 1e-7)
 						{
-							lhs += part_call.masterProb.getX()[j] * (-aggrCoarseCut[j] * 1.0 / samples.size() + prob.objcoef[j]);
+							lhs += masterP.getX()[j] * (-aggrCoarseCut[j] * 1.0 / samples.size() + prob.objcoef[j]);
 							tempval += xvals[j] * aggrCoarseCut[j];
 							tempcut[j] = aggrCoarseCut[j];
 						}
 						else
 						{
 							tempcut[j] = 0;
-							lhs += part_call.masterProb.getX()[j] * prob.objcoef[j];
+							lhs += masterP.getX()[j] * prob.objcoef[j];
 						}
 					}
 					cutcoefs.push_back(tempcut);
 					coarseCutRhs += tempval * 1.0 / samples.size();
 					// Just tempararily set an UB, will be updated in the inner loop any way
 					IloRange range(env, -IloInfinity, lhs, -coarseCutRhs);
-					part_call.masterProb.getModel().add(range);
+					masterP.getModel().add(range);
 					cuts.add(range);
 					cutrhs.push_back(coarseCutRhs);
 					stat.num_opt_cuts++;
@@ -890,7 +885,6 @@ double Solution::solve_mean_value_model(const TSLP& prob, IloEnv& meanenv, IloNu
 }
 
 
-
 void Solution::computeSamplingError(double& samplingError, const vector<double>& scenObjs)
 {
 	samplingError = 0;
@@ -905,7 +899,6 @@ void Solution::computeSamplingError(double& samplingError, const vector<double>&
 	if (samplingError < 1e-3 * 1.0 / sqrt(scenObjs.size()))
 		samplingError = 1e-3 * 1.0 / sqrt(scenObjs.size());
 }
-
 
 
 void Solution::setup_bundle_QP(IloEnv& env, const TSLP& prob, IloCplex& cplex, IloModel& model, IloNumVarArray& x, const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons)
@@ -958,10 +951,10 @@ void Solution::setup_bundle_QP(IloEnv& env, const TSLP& prob, IloCplex& cplex, I
 	//cplex.setParam(IloCplex::EpOpt, 1e-4);
 }
 
-
-
 void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, int option, bool saaError)
 {
+	/* Note that the inner loop can be pulled outside of this function as a function in the Masterproblem class*/
+
 	// option = 0: B&M (2011)
 	// option = 1,2: B&P-L FSP/SSP
 	// option = 3: use fixed rate schedule on increasing sample size, when BM fails to progress - when the new sampled problem is nearly optimal at the very first iteration for >= 3 times; also, once we switch to fixed rate schedule, we keep it in that way!
@@ -1366,10 +1359,7 @@ void Solution::solve_adaptive(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clo
 		cutcon.endElements();
 		cutcon.end();
 	}
-
 }
-
-
 
 void Solution::finalEval(IloEnv& env, TSLP& prob, const VectorXf& xiterateXf, STAT& stat)
 {
@@ -1490,4 +1480,273 @@ bool Solution::addToCollection(const VectorXf& dualvec, vector<DualInfo>& dualIn
 		}
 	}
 	return flag;
+}
+
+void Solution::solve_adaptive_partition(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& clock, int option)
+{
+	// option = 0: B&P-L with 1e-6 precision for solving SAA problems
+	// option = 1,2: B&P-L FSP/SSP
+	// option = 3: use fixed rate schedule on increasing sample size, when BM fails to progress
+	// option = 4: use fixed rate schedule all the way
+	// option = 5: use a simple heuristic "trust region" idea to adjust the sample size increasing rate
+
+	double t_quant = 1.282;
+	double TIMELIMIT = 7200;
+
+	double alpha = 0.1;
+	Sequence seq;
+	sequentialSetup(seq, option);
+	double epsilon; // epsilon is for stopping criterion of B&P-L
+	bool iterflag = 1;
+	int iter = 0;
+
+	// collection of dual multipliers
+	vector<DualInfo> dualInfoCollection;
+	VectorXf xiterateXf(prob.nbFirstVars);
+	vector<VectorXf> rhsvecs;
+	// Store all the rhs vectors
+	for (int k = 0; k < prob.nbScens; ++k)
+	{
+		VectorXf rhsXf(prob.nbSecRows);
+		for (int j = 0; j < prob.nbSecRows; ++j)
+			rhsXf[j] = prob.secondconstrbd[j + k * prob.nbSecRows];
+		rhsvecs.push_back(rhsXf);
+	}
+	int nearOptimal = 0; // keep track of # of consecutive times where the new sampled problem is nearly optimal at the very first iteration
+
+	int nbIterEvalScens, nbIterSolScens;
+	double starttime = clock.getTime();
+
+	// We create some safeguard in case we do not finish by satisfying the stopping criterion in nMax steps
+	double minGS = 1e8;
+	double minGCI = 1e8;
+	double G, S;
+	//double increaseRate = 0.1;
+	while (iterflag == 1) // Outer loop
+	{
+		/* Setting up the sample size */
+		cout << "outer iter = " << iter << ", dualInfoCollection.size = " << dualInfoCollection.size() << ", increaseRate = " << prob.increaseRate << endl;
+		if (iter == 0 || option == 0 || option == 1 || option == 2)
+			nbIterEvalScens = seq.sampleSizes[iter];
+		else
+		{
+			if (option == 4 || option == 5)
+			{
+				// option = 4: use a fixed rate all the way
+				// option = 5: use a simple heuristic trust region idea to choose the sample size increasing rate
+				nbIterEvalScens = int(nbIterEvalScens * (1 + prob.increaseRate));
+				if (nbIterEvalScens < seq.sampleSizes[iter])
+					nbIterEvalScens = seq.sampleSizes[iter];
+			}
+			// use fixed rate schedule on increasing sample size, when BM fails to progress
+			if (option == 3)
+			{
+				if (nearOptimal >= 3)
+				{
+					nbIterEvalScens = int(nbIterEvalScens * (1 + prob.increaseRate));
+					if (nbIterEvalScens < seq.sampleSizes[iter])
+						nbIterEvalScens = seq.sampleSizes[iter];
+				}
+				else
+				{
+					if (seq.sampleSizes[iter] > nbIterEvalScens)
+						nbIterEvalScens = seq.sampleSizes[iter];
+				}
+			}
+		}
+		nbIterSolScens = 2 * nbIterEvalScens;
+		cout << "nbIterEvalScens = " << nbIterEvalScens << ", nbIterSolScens = " << nbIterSolScens << endl;
+
+		/* Begin Solving sampled problems */
+
+		vector<int> samplesForSol(nbIterSolScens);
+		for (int j = 0; j < nbIterSolScens; ++j)
+			samplesForSol[j] = rand() % prob.nbScens;
+		STAT tempstat0;
+		tempstat0.relaxobjval = -1e10;
+		tempstat0.feasobjval = 1e10;
+		tempstat0.solvetime = 0;
+		tempstat0.warmstarttime = 0;
+		tempstat0.warmstartcuttime = 0;
+		tempstat0.iter = 0;
+
+		bool solFlag;
+
+		stat.solvetime = clock.getTime() - starttime;
+		double remaintime = TIMELIMIT - stat.solvetime;
+		if (remaintime < 1)
+		{
+			cout << "TIME ERROR!" << endl;
+			exit(0);
+		}
+		if (option != 0)
+		{
+			if (iter == 0)
+			{
+				// stop when opt gap is small relative to the sample error, the very first sampled problem (no stability center provided)
+				solFlag = solve_partly_inexact_bundle(env, prob, tempstat0, clock, samplesForSol, xiterateXf, 1, 1, dualInfoCollection, rhsvecs, nearOptimal, remaintime);
+			}
+			else
+			{
+				// stop when opt gap is small relative to the sample error, there exists a current stability center
+				solFlag = solve_partly_inexact_bundle(env, prob, tempstat0, clock, samplesForSol, xiterateXf, 1, 0, dualInfoCollection, rhsvecs, nearOptimal, remaintime);
+			}
+		}
+		else
+		{
+			// solve to 1e-6
+			if (iter == 0)
+			{
+				// stop when opt gap is small relative to the sample error, the very first sampled problem (no stability center provided)
+				solFlag = solve_partly_inexact_bundle(env, prob, tempstat0, clock, samplesForSol, xiterateXf, 0, 1, dualInfoCollection, rhsvecs, nearOptimal, remaintime);
+			}
+			else
+			{
+				// stop when opt gap is small relative to the sample error, there exists a current stability center
+				solFlag = solve_partly_inexact_bundle(env, prob, tempstat0, clock, samplesForSol, xiterateXf, 0, 0, dualInfoCollection, rhsvecs, nearOptimal, remaintime);
+			}
+		}
+
+		if (solFlag == 0)
+		{
+			// problem did not get solved most likely because of time limit, abort using previous stat
+			iterflag = 0;
+		}
+
+		else
+		{
+			cout << "# of inner iterations = " << tempstat0.iter << endl;
+			if (iter > 0 && option == 5)
+			{
+				// option = 5: use a simple heuristic "trust region" idea to adjust the sample size increasing rate		
+				if (tempstat0.iter <= 2)
+				{
+					// increase the increasing rate
+					prob.increaseRate = 2 * prob.increaseRate;
+				}
+				else
+				{
+					if (tempstat0.iter > 4)
+					{
+						// decrease the increasing rate
+						prob.increaseRate = prob.increaseRate * 0.5;
+					}
+					else
+					{
+						// otherwise, i.e., inner iter = 3, 4, stay the same 
+					}
+				}
+				if (prob.increaseRate < 0.05)
+					prob.increaseRate = 0.05;
+				if (prob.increaseRate > 2)
+					prob.increaseRate = 2;
+			}
+			stat.iter += tempstat0.iter; // stat.iter records the total number of inner iterations
+			stat.warmstarttime += tempstat0.warmstarttime;
+			stat.warmstartcuttime += tempstat0.warmstartcuttime;
+			stat.mastertime += tempstat0.solvetime; // stat.mastertime records the solution time
+
+			/* Begin Evaluation */
+			IloNumArray xvals(env, prob.nbFirstVars);
+			for (int j = 0; j < prob.nbFirstVars; ++j)
+				xvals[j] = xiterateXf(j);
+			// Now obtained xiterateXf, xvals, scenobj corresponding to \hat{x}_k
+			if (iter == 0)
+			{
+				// epsilon is for stopping criterion of B&P-L, just set it to be small enough relative to the initial UB obtained from the first iteration
+				epsilon = prob.eps * fabs(tempstat0.feasobjval);
+			}
+			// Test stopping criterion: SRP type CI estimation
+			double tempEvaltime = clock.getTime();
+			G = 0;
+			S = 0;
+			vector<double> scenObjEval(nbIterEvalScens);
+			vector<int> samplesForEval(nbIterEvalScens);
+			for (int j = 0; j < nbIterEvalScens; ++j)
+				samplesForEval[j] = rand() % prob.nbScens;
+			STAT tempstat;
+			tempstat.iter = 0;
+			tempstat.relaxobjval = -1e10;
+			tempstat.feasobjval = 1e10;
+			VectorXf xiterateXf2 = xiterateXf;
+			int nearOptimal2 = 0;
+
+			stat.solvetime = clock.getTime() - starttime;
+			remaintime = TIMELIMIT - stat.solvetime;
+
+			// Use the relative opt gap, evaluation mode: 1e-4 as the threshold, there exists a current stabilization center
+			solFlag = solve_partly_inexact_bundle(env, prob, tempstat, clock, samplesForEval, xiterateXf2, 2, 0, dualInfoCollection, rhsvecs, nearOptimal2, remaintime);
+			if (solFlag == 0)
+			{
+				// problem did not get solved most likely because of time limit, abort using previous stat
+				iterflag = 0;
+			}
+			else
+			{
+				stat.finalSampleSize = nbIterSolScens;
+				IloNumArray xvals2(env, prob.nbFirstVars);
+				for (int j = 0; j < prob.nbFirstVars; ++j)
+					xvals2[j] = xiterateXf2(j);
+				// xiterateXf, xvals, scenObj correspondiing to \hat{x}_k, xiterateXf2, xvals2, scenObj2 corresponding to x^*_{n_k}
+				SRP(env, prob, clock, nbIterEvalScens, samplesForEval, G, S, xvals, xvals2, scenObjEval);
+				xvals2.end();
+				stat.evaltime += (clock.getTime() - tempEvaltime);
+
+				// Check if the stopping criterion is met
+				if (option == 0 || option == 1 || option == 2)
+				{
+					cout << "G = " << G << ", S = " << S << ", CI width = " << G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) << ", epsilon = " << epsilon << endl;
+					// B&P-L: FSP/SSP
+					if (G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) < minGCI)
+						minGCI = G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens);
+					if (G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) <= epsilon)
+					{
+						iterflag = 0;
+						stat.finalSampleSize = nbIterSolScens;
+					}
+					else
+					{
+						iter++;
+						if (option == 2)
+						{
+							// sample size for the next iteration will depend (adaptively) on the statistics of the current iteration
+							double const_b = t_quant * S + 1;
+							double const_c = nbIterEvalScens * G;
+							double const_delta = const_b * const_b + 4 * epsilon * const_c;
+							double const_v = (const_b + sqrt(const_delta)) * 1.0 / (2 * epsilon);
+							seq.sampleSizes[iter] = int(const_v * const_v) + 1;
+						}
+					}
+				}
+				if (option == 3 || option == 4 || option == 5)
+				{
+					cout << "G = " << G << ", S = " << S << ", CI width = " << G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) << ", epsilon = " << epsilon << endl;
+					// B&P-L
+					if (G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) < minGCI)
+						minGCI = G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens);
+					if (G + (t_quant * S + 1) * 1.0 / sqrt(nbIterEvalScens) <= epsilon)
+					{
+						iterflag = 0;
+						stat.finalSampleSize = nbIterSolScens;
+					}
+					else
+						iter++;
+				}
+				stat.solvetime = clock.getTime() - starttime;
+				if (iter == seq.nMax || stat.solvetime > TIMELIMIT)
+				{
+					iterflag = 0;
+					stat.finalSampleSize = nbIterSolScens;
+				}
+			}
+			xvals.end();
+		}
+	}
+
+	// Now check if this estimation is correct by evaluating \hat{x}_k using the true distribution (all samples)
+	finalEval(env, prob, xiterateXf, stat);
+	stat.mainIter = iter;
+	// B&P-L: FSP or SSP
+	stat.gapThreshold = minGCI;
+	cout << "optimality gap is less than " << stat.gapThreshold << " with prob >= 90%" << endl;
 }

@@ -180,11 +180,6 @@ int main(int argc, char** argv)
 				samples.push_back(rand() % prob.nbScens);
 		}
 		VectorXf xiterateXf(prob.nbFirstVars);
-
-		Subproblem sub_call(env, prob);
-		sub_call.construct_second_opt(env, prob);
-		sub_call.construct_second_feas(env, prob);
-
 		vector<DualInfo> dualInfoCollection;
 		vector<VectorXf> rhsvecs;
 		// Store all the rhs vectors
@@ -213,14 +208,14 @@ int main(int argc, char** argv)
 		// Adaptive procedure: solve SAAs in each iteration to the sampling error
 		// 0: B&M (2011); 1: B&P-L FSP; 2: B&P-L SSP; 3: fixed rate schedule after BM's schedule fails
 		solution_call.solve_adaptive(env, prob, stat, clock, suboption, 1);
-	}/*
+	}
 	if (option == 5)
 	{
 		// Adaptive procedure, use partition-based approach (with warm starts) to solve the sampled problems
 		prob.kappa = 0.8;
 		prob.kappaf = 0.3;
-		solve_adaptive_partition(env, prob, stat, clock, suboption);
-	}*/
+		solution_call.solve_adaptive_partition(env, prob, stat, clock, suboption);
+	}
 	cout << "solvetime = " << stat.solvetime << endl;
 
 	ofstream out(argv[2], ios::app);

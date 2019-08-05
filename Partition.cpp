@@ -5,27 +5,13 @@ double TIME_LIMIT = 7200;
 /*
   Constructor
 */
-Partition::Partition(Masterproblem& m, Subproblem& s) {
-	// Need to copy element-wise?
-	masterProb = m;
-	subProb = s;
-}
-
-/*
- Default Constructor
-*/
 Partition::Partition() {
-
-
 }
 
 /*
   Destructor
 */
 Partition::~Partition() {
-	// Need to destroy partition?
-	//masterProb.~Masterproblem();
-	//subProb.~Subproblem();
 }
 
 //Took Out const vector<Component>& partition,
@@ -94,33 +80,6 @@ bool Partition::addToCollection(const VectorXf& dualvec, vector<DualInfo>& dualI
 		}
 	}
 	return flag;
-}
-
-//Took Out const vector<Component>& partition,
-void Partition::add_feas_cuts(IloEnv& env, TSLP& prob, const IloNumArray& xvals, double subobjval, const VectorXf& dualvec, int i)
-{
-	// Add feasibility cuts
-	vector<double> feas_cut_coef(prob.nbFirstVars, 0);
-	double sum_xvals = 0.0;
-	for (int ii = 0; ii < prob.nbSecRows; ++ii)
-	{
-		for (int j = 0; j < prob.nbPerRow[ii]; ++j)
-		{
-			if (prob.CoefInd[ii][j] < prob.nbFirstVars)
-			{
-				feas_cut_coef[prob.CoefInd[ii][j]] += prob.CoefMat[ii][j] * dualvec[ii] * partition[i].indices.size();
-				sum_xvals += prob.CoefMat[ii][j] * dualvec[ii] * partition[i].indices.size() * xvals[prob.CoefInd[ii][j]];
-			}
-		}
-	}
-	IloExpr lhsfeas(env);
-	for (int j = 0; j < prob.nbFirstVars; ++j)
-	{
-		if (fabs(feas_cut_coef[j]) > 1e-7)
-			lhsfeas += feas_cut_coef[j] * masterProb.x[j];
-	}
-	masterProb.model.add(lhsfeas >= subobjval + sum_xvals);
-	lhsfeas.end();
 }
 
 void Partition::simple_refine(const Component& component, const TSLP& prob, const vector<IloNumArray>& extreme_points, const vector<int>& extreme_points_ind, const vector<IloNumArray>& extreme_rays, const vector<int>& extreme_rays_ind, vector<Component>& new_partition, vector< vector<int> >& extreme_ray_map)
@@ -228,7 +187,7 @@ bool Partition::compare_arrays(const TSLP& prob, const IloNumArray& array1, cons
 	return returnflag;
 }
 
-void Partition::gen_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNumArray& xvals, const vector<int>& extreme_ray_map, const vector<IloNumArray>& extreme_rays, const vector<int>& extreme_rays_ind, const double sum_of_infeas, IloModel& model, const IloNumVarArray& x)
+void Partition::gen_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNumArray& xvals, const vector<int>& extreme_ray_map, const vector<IloNumArray>& extreme_rays, const vector<int>& extreme_rays_ind, const double sum_of_infeas, Masterproblem& masterProb)
 {
 	vector<double> feas_cut_coef(prob.nbFirstVars, 0);
 	double sum_xvals = 0.0;
@@ -251,25 +210,13 @@ void Partition::gen_feasibility_cuts(IloEnv& env, const TSLP& prob, const IloNum
 	for (int j = 0; j < prob.nbFirstVars; ++j)
 	{
 		if (fabs(feas_cut_coef[j]) > 1e-7)
-			lhs += x[j] * feas_cut_coef[j];
+			lhs += masterProb.x[j] * feas_cut_coef[j];
 	}
-	model.add(lhs >= sum_of_infeas + sum_xvals);
+	masterProb.model.add(lhs >= sum_of_infeas + sum_xvals);
 	lhs.end();
 }
 
-
-
-// public
-
-
-
-
-
-
- /*
-
- */
-double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<int>& samples, const IloNumArray& stab_center, const vector<DualInfo>& dualInfoCollection, vector< vector<double> >& cutcoefs, vector<double>& cutrhs, const vector<VectorXf>& rhsvecs, IloNumArray& xvals, IloTimer& clock, STAT& stat) {
+double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<int>& samples, const IloNumArray& stab_center, const vector<DualInfo>& dualInfoCollection, vector< vector<double> >& cutcoefs, vector<double>& cutrhs, const vector<VectorXf>& rhsvecs, IloNumArray& xvals, Masterproblem& masterProb, IloTimer& clock, STAT& stat) {
 	// first stage constraints
 	for (int i = 0; i < prob.firstconstrind.getSize(); ++i)
 	{
@@ -318,26 +265,6 @@ double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<in
 		VectorXf vals = dualvecMatrix * rhsvecs[samples[k]] - coefvecMatrix * xiterate + rhsVector;
 		int maxind;
 		double maxval = vals.maxCoeff(&maxind);
-		/*
-		double maxval = -1e8;
-		int maxind = -1;
-		for (int l = 0; l < dualInfoCollection.size(); ++l)
-		{
-		  double tempval = dualInfoCollection[l].dualvec.dot(rhsvecs[samples[k]]);
-		  tempval -= dualInfoCollection[l].coefvec.dot(xiterate);
-		  tempval += dualInfoCollection[l].rhs;
-		  if (tempval > maxval)
-		  {
-			maxval = tempval;
-			maxind = l;
-		  }
-		}
-		if (maxind == -1)
-		{
-		  cout << "something is wrong in warmstart!" << endl;
-		  exit(0);
-		}
-		*/
 		initialCutCoef = initialCutCoef + dualInfoCollection[maxind].coefvec;
 		initialCutRhs += dualInfoCollection[maxind].dualvec.dot(rhsvecs[samples[k]]) + dualInfoCollection[maxind].rhs;
 	}
@@ -377,26 +304,6 @@ double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<in
 		for (int k = 0; k < samples.size(); ++k)
 		{
 			// Go through all scenarios
-			/*
-			double maxval = -1e8;
-			int maxind = -1;
-			for (int l = 0; l < dualInfoCollection.size(); ++l)
-			{
-			  double tempval = dualInfoCollection[l].dualvec.dot(rhsvecs[samples[k]]);
-			  tempval -= dualInfoCollection[l].coefvec.dot(xiterate);
-			  tempval += dualInfoCollection[l].rhs;
-			  if (tempval > maxval)
-			  {
-				maxval = tempval;
-				maxind = l;
-			  }
-			}
-			if (maxind == -1)
-			{
-			  cout << "something is wrong in warmstart!" << endl;
-			  exit(0);
-			}
-			*/
 			VectorXf vals = dualvecMatrix * rhsvecs[samples[k]] - coefvecMatrix * xiterate + rhsVector;
 			int maxind;
 			double maxval = vals.maxCoeff(&maxind);
@@ -433,34 +340,13 @@ double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<in
 		Cut.end();
 	}
 	cout << "# of cuts added in the warmstart = " << nCuts << endl;
-	masterProb.cplex.end();
-	masterProb.model.end();
-	masterProb.x.end();
-	masterProb.theta.end();
 	return returnval;
-}
-
-/*
-This function should be called from the main class
-*/
-void Partition::computeSamplingError(double& samplingError, const vector<double>& scenObjs) {
-	samplingError = 0;
-	double sampleMean = 0;
-	for (int k = 0; k < scenObjs.size(); ++k)
-		sampleMean += scenObjs[k];
-	sampleMean = sampleMean * 1.0 / scenObjs.size();
-	for (int k = 0; k < scenObjs.size(); ++k)
-		samplingError += pow(scenObjs[k] - sampleMean, 2);
-	samplingError = sqrt(samplingError) * 1.0 / scenObjs.size();
-	// \delta = 1e-3
-	if (samplingError < 1e-3 * 1.0 / sqrt(scenObjs.size()))
-		samplingError = 1e-3 * 1.0 / sqrt(scenObjs.size());
 }
 
 /*
   Finds coarse cuts and applies them to the master problem.
 */
-double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, STAT& stat, IloRangeArray& center_cons, const IloNumArray& stab_center, IloRangeArray& cuts, const vector<double>& cutrhs, VectorXf& aggrCoarseCut, double& coarseCutRhs, vector<VectorXf>& partcoef, vector<double>& partrhs, double starttime, IloTimer& timer, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option) {
+double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, STAT& stat, IloRangeArray& center_cons, const IloNumArray& stab_center, IloRangeArray& cuts, const vector<double>& cutrhs, VectorXf& aggrCoarseCut, double& coarseCutRhs, vector<VectorXf>& partcoef, vector<double>& partrhs, double starttime, IloTimer& timer, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option, Masterproblem& masterProb, Subproblem& subProb) {
 	// coarse oracle
 	// won't add any cuts in this subroutine, just collect information, and decide whether or not add the coarse cut depending on whether the descent target is achieved
 	bool cutflag = 1;
@@ -586,7 +472,7 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
 				//cout << "feas cuts!" << endl;
 				cutflag = 1;
 				// Add feasibility cuts
-				add_feas_cuts(env, prob, xvals, subobjval, dualvec, i);
+				masterProb.add_feas_cuts(env, prob, xvals, subobjval, dualvec, partition[i]);
 			}
 			duals.end();
 		}
@@ -613,7 +499,7 @@ double Partition::coarse_oracle(IloEnv& env, TSLP& prob, IloNumArray& xvals, dou
   Use scenarios in current partition to refine the master problem? and
   then form a better partition.
 */
-bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<double>& scenObjs, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option)
+bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const IloNumArray& xvals, double& feasboundscen, VectorXf& cutcoefscen, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<double>& scenObjs, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option, Masterproblem& masterProb, Subproblem& subProb)
 {
 	bool returnflag = 1;
 	for (int i = 0; i < partition.size(); ++i)
@@ -679,7 +565,7 @@ bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
 		for (int j = 0; j < extreme_ray_map.size(); ++j)
 		{
 			// add feasibility cuts group by group
-			gen_feasibility_cuts(env, prob, xvals, extreme_ray_map[j], extreme_rays, extreme_rays_ind, sum_of_infeas, masterProb.model, masterProb.x);
+			gen_feasibility_cuts(env, prob, xvals, extreme_ray_map[j], extreme_rays, extreme_rays_ind, sum_of_infeas, masterProb);
 			stat.num_feas_cuts++;
 		}
 		for (int j = 0; j < extreme_points.size(); ++j)
@@ -695,7 +581,7 @@ bool Partition::refine_full(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
   then form a better partition, checking the precision of the new partition
   after each scenario.
 */
-bool Partition::refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, const IloNumArray& xvals, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<VectorXf>& partcoef, vector<double>& partrhs, double descent_target, bool& fullupdateflag, double& coarseLB, VectorXf& aggrCoarseCut, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option) {
+bool Partition::refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, const IloNumArray& xvals, vector<Component>& new_partition, STAT& stat, IloTimer& clock, vector<VectorXf>& partcoef, vector<double>& partrhs, double descent_target, bool& fullupdateflag, double& coarseLB, VectorXf& aggrCoarseCut, vector<double>& scenObjs, const vector<int>& samples, vector<DualInfo>& dualInfoCollection, const vector<VectorXf>& rhsvecs, int option, Masterproblem& masterProb, Subproblem& subProb) {
 	// Solve scenario subproblems component by component, stop when hopeless to achieve descent target
 	bool returnflag = 1;
 	// Currently: go through all the partition component by exploring the bigger component first
@@ -770,7 +656,7 @@ bool Partition::refine_part(IloEnv& env, IloEnv& env2, const TSLP& prob, const I
 			for (int j = 0; j < extreme_ray_map.size(); ++j)
 			{
 				// add feasibility cuts group by group
-				gen_feasibility_cuts(env, prob, xvals, extreme_ray_map[j], extreme_rays, extreme_rays_ind, sum_of_infeas, masterProb.model, masterProb.x);
+				gen_feasibility_cuts(env, prob, xvals, extreme_ray_map[j], extreme_rays, extreme_rays_ind, sum_of_infeas, masterProb);
 				stat.num_feas_cuts++;
 			}
 			for (int j = 0; j < extreme_points.size(); ++j)

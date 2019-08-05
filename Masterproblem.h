@@ -40,6 +40,7 @@ public:
 	void define_qp_model();
 	void setup_bundle_QP(const IloNumArray& stab_center, IloObjective& QPobj, IloRangeArray& cuts, IloRangeArray& center_cons);
 	void addInitialCuts(IloEnv& env, TSLP& prob, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs);
+	void add_feas_cuts(IloEnv& env, TSLP& prob, const IloNumArray& xvals, double subobjval, const VectorXf& dualvec, const Component& compo);
 	IloCplex& getCplex();
 	IloNumVarArray& getX();
 	IloNumVar& getTheta();

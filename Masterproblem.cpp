@@ -180,6 +180,32 @@ Masterproblem::Masterproblem(IloEnv& env, TSLP& prob, STAT& stat, IloTimer& cloc
   	//cplex.setParam(IloCplex::EpOpt, 1e-4);
   }
 
+  void Masterproblem::add_feas_cuts(IloEnv& env, TSLP& prob, const IloNumArray& xvals, double subobjval, const VectorXf& dualvec, const Component& compo)
+  {
+  	  // Add feasibility cuts
+	  vector<double> feas_cut_coef(prob.nbFirstVars, 0);
+	  double sum_xvals = 0.0;
+	  for (int ii = 0; ii < prob.nbSecRows; ++ii)
+	  {   
+		  for (int j = 0; j < prob.nbPerRow[ii]; ++j)
+  		  {   
+   			  if (prob.CoefInd[ii][j] < prob.nbFirstVars)
+ 			  {   
+ 				  feas_cut_coef[prob.CoefInd[ii][j]] += prob.CoefMat[ii][j] * dualvec[ii] * compo.indices.size();
+  				  sum_xvals += prob.CoefMat[ii][j] * dualvec[ii] * compo.indices.size() * xvals[prob.CoefInd[ii][j]];
+  			  }
+          }
+      }
+	  IloExpr lhsfeas(env);
+	  for (int j = 0; j < prob.nbFirstVars; ++j)
+	  {   
+ 		  if (fabs(feas_cut_coef[j]) > 1e-7)
+ 			  lhsfeas += feas_cut_coef[j] * x[j];
+ 	  }
+	  model.add(lhsfeas >= subobjval + sum_xvals);
+	  lhsfeas.end();
+  }
+
   void Masterproblem::addInitialCuts(IloEnv& env, TSLP& prob, IloRangeArray& cutcon, const vector<int>& samplesForSol, const vector<DualInfo>& dualInfoCollection, const VectorXf& xiterateXf, const vector<VectorXf>& rhsvecs)
   {
 	  // Given a collection of dual multipliers, construct an initial master problem (relaxation)
