@@ -280,7 +280,7 @@ double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<in
 		}
 	}
 	cutcoefs.push_back(tempcutcoef);
-	cutrhs.push_back(initialCutRhs);
+	cutrhs.push_back(initialCutRhs*1.0/samples.size());
 	initialCut += masterProb.theta;
 	masterProb.model.add(initialCut >= initialCutRhs);
 	initialCut.end();
@@ -334,7 +334,7 @@ double Partition::solve_warmstart(IloEnv& env, const TSLP& prob, const vector<in
 					tempcutcoef[i] = CutCoef[i];
 			}
 			cutcoefs.push_back(tempcutcoef);
-			cutrhs.push_back(CutRhs);
+			cutrhs.push_back(CutRhs*1.0/samples.size());
 			nCuts++;
 		}
 		Cut.end();
